@@ -1,0 +1,51 @@
+/* Couleurs thématiques "Bataille Navale" */
+:root {
+    --deep-ocean: #002b36;
+    --water-blue: #073642;
+    --action-orange: #cb4b16;
+    --text-color: #fdf6e3;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: var(--deep-ocean);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+header {
+    background-color: var(--water-blue);
+    padding: 1rem;
+    text-align: center;
+    border-bottom: 2px solid var(--action-orange);
+}
+
+.main-container {
+    display: flex; /* Flexbox pour le menu latéral et le contenu  */
+    flex: 1;
+}
+
+nav {
+    width: 200px;
+    background-color: rgba(0,0,0,0.2);
+    padding: 1rem;
+}
+
+nav ul { list-style: none; padding: 0; }
+nav a { color: var(--text-color); text-decoration: none; display: block; padding: 10px 0; }
+nav a:hover { color: var(--action-orange); } /* Pseudo-classe [cite: 6165] */
+
+main {
+    flex: 1;
+    padding: 2rem;
+}
+
+footer {
+    background-color: var(--water-blue);
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8rem;
+}

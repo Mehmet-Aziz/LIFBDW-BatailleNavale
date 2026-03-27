@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block main_content %}
+<h2>Le site de recettes pour le cours de BDW</h2>
+
+<p id="parag_description">
+	Vous pouvez gérer des recettes, des ingrédients, et les auteurs.
+	<br>
+	Utilisez le menu à gauche pour découvrir les fonctionnalités de ce site.
+</p>
+
+<p>Que faire sur ce site ?</p>
+<ul>
+	<li>Afficher les données de la base</li>
+	<li>Ajouter une recette</li>
+	<li>Rechercher une recette</li>
+	<li>Générer un historique de votre activité sur le site</li>
+	<li>...</li>
+</ul>
+
+<div>
+	<img src="mitonmar/static/img/top-plats.png" />
+</div>
+
+{% include 'message.html' %}
+
+{% endblock %}

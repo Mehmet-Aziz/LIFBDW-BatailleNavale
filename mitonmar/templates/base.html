@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <base href="/">
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
+  <link type="text/css" rel="stylesheet" href="/mitonmar/static/css/style.css">
+  <link rel="shortcut icon" type="image/x-icon" href="/mitonmar/static/img/wolf.png" />
+  <title>{{ SESSION['APP'] }} - {{ SESSION['BASELINE'] }}</title>
+</head>
+
+<body>
+  {% include 'header.html' %}
+
+  <div id="div-central">
+    {% include 'menu.html' %}
+  
+    <main>
+      {% block main_content %}{% endblock %}
+    </main>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil - Bataille Navale{% endblock %}
+
+{% block main_content %}
+    <h2>{{ message_bienvenue }}</h2>
+    <p>Bonjour <strong>{{ pseudo_joueur }}</strong>, prêt à couler des navires ?</p>
+    
+    <div class="actions">
+        <a href="/connexion" class="btn">Se connecter pour jouer</a>
+    </div>
+{% endblock %}

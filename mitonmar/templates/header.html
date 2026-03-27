@@ -1,0 +1,14 @@
+<header>
+	<div style="float: left;">
+		<a href="/">
+			<img src="/mitonmar/static/img/wolf.png" width="50%" height="50%">
+		</a>
+	</div>
+	<!-- le titre <h1> à personnaliser ! -->
+	<h1>{{ SESSION['APP'] }}</h1>
+	<!-- NB : si vous souhaitez également modifier le titre qui apparait 
+		dans l'onglet du navigateur (ce qui serait logique !), 
+		c'est une métadonnée de la page (dans la balise <head> de index.php).
+	 -->	
+	<strong>{{ SESSION['BASELINE'] }}</strong>
+</header>

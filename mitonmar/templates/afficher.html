@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block main_content %}
+{% if REQUEST_VARS['affichage'] == 'listes' %}
+    <h2>Liste des recettes</h2>
+    <ul>
+    {% for instance in REQUEST_VARS['recettes'] %}
+        <li>{{ instance['nom_recette'] }} ({{ instance['cat_recette'] }}) : <a href="afficher?id_recette={{ instance['id_recette'] }}">voir details</a></li>
+    {% endfor %}
+    </ul>
+
+    <h2>Liste des auteurs</h2>
+    <ul>
+    {% for instance in REQUEST_VARS['auteurs']  %}
+        <li>{{ instance['nom'] }} {{ instance['prénom'] }} (#{{ instance['pseudo'] }})</li>
+    {% endfor %}
+    </ul>
+
+
+
+
+
+
+{% else %}    
+<h2>Recette : {{ REQUEST_VARS['recette']['nom_recette'] }}</h2>
+
+<h3>Informations : </h3>
+<ul>
+    <li>Catégorie : {{ REQUEST_VARS['recette']['catégorie'] }}</li>
+    <li>Description : {{ REQUEST_VARS['recette']['description'] }}</li>
+    <li>Nombre de personnes : {{ REQUEST_VARS['recette']['nb_personnes'] }}</li>
+    <li>Temps de préparation : {{ REQUEST_VARS['recette']['tmps_préparation'] }}</li>
+    <li>Temps de repos : {{ REQUEST_VARS['recette']['tmps_repos'] }}</li>
+    <li>Temps de cuisson : {{ REQUEST_VARS['recette']['tmps_cuisson'] }}</li>
+</ul>
+
+<h3>ÉTAPES : </h2>
+        {% for instance in REQUEST_VARS['étapes'] %}
+            <h4>Étape {{ instance['numero'] }} : </h4>
+            <p>{{ instance['explication'] }}</p>
+        {% endfor %}
+    </ul>
+    
+{% endif %}
+
+{% endblock %}

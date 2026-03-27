@@ -1,0 +1,29 @@
+# Définition d'un tableau de routes au format TOML (https://toml.io/)
+# - url : chemin dans l'URL
+# - controleur : chemin vers le fichier du controleur
+# - template : chemin vers le fichier de template
+
+[[routes]]
+url = ""
+controleur = "controleurs/accueil.py"
+template = "accueil.html"
+
+[[routes]]
+url = "afficher"
+controleur = "controleurs/afficher.py"
+template = "afficher.html"
+
+[[routes]]
+url = "rechercher"
+controleur = "controleurs/rechercher.py"
+template = "rechercher.html"
+
+[[routes]]
+url = "historique"
+controleur = "controleurs/historique.py"
+template = "historique.html"
+
+[[routes]]
+url = "ajouter"
+controleur = "controleurs/ajouter.py"
+template = "ajouter.html"

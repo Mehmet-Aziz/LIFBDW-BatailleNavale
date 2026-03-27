@@ -1,0 +1,9 @@
+[[routes]]
+url = ""  # Route pour la racine (http://localhost:4242/)
+controleur = "controleurs/accueil.py"
+template = "accueil.html"
+
+[[routes]]
+url = "accueil"  # Route explicite (http://localhost:4242/accueil)
+controleur = "controleurs/accueil.py"
+template = "accueil.html"

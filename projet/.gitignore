@@ -1,0 +1,5 @@
+.vebdw/
+__pycache__/
+*.pyc
+config-bd.toml
+.DS_Store

@@ -1,0 +1,3 @@
+{% if REQUEST_VARS['message'] and REQUEST_VARS['message_class'] %}
+	<div class="{{ REQUEST_VARS['message_class'] }}"> {{ REQUEST_VARS['message'] }}</div>
+{% endif %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Bataille Navale 2026{% endblock %}</title>
+    <link rel="stylesheet" href="static/css/style.css"> 
+<style>
+    /* Ta charte graphique en direct */
+    :root { --deep-ocean: #002b36; --action-orange: #cb4b16; --text: #fdf6e3; }
+    body { background: var(--deep-ocean); color: var(--text); margin: 0; font-family: sans-serif; }
+    header { background: #073642; border-bottom: 3px solid var(--action-orange); padding: 10px; text-align: center; }
+    .main-container { display: flex; min-height: 80vh; }
+    nav { width: 200px; background: rgba(0,0,0,0.3); padding: 20px; }
+    main { flex: 1; padding: 20px; }
+    footer { background: #073642; text-align: center; padding: 10px; font-size: 0.8em; }
+</style>
+
+
+
+
+</head>
+<body>
+    {% include 'header.html' %}
+    
+    <div class="main-container">
+        {% include 'menu.html' %}
+        
+        <main>
+            {% block main_content %}{% endblock %}
+        </main>
+    </div>
+
+    {% include 'footer.html' %}
+</body>
+</html>
