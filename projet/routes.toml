@@ -7,3 +7,9 @@ template = "accueil.html"
 url = "accueil"  # Route explicite (http://localhost:4242/accueil)
 controleur = "controleurs/accueil.py"
 template = "accueil.html"
+
+
+[[routes]]
+url = "connexion"
+controleur = "controleurs/connexion.py"
+template = "connexion.html"

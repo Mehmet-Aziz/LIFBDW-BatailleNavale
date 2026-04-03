@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block main_content %}
+    <h2>Espace Recrutement des Amiraux</h2>
+
+    {% if erreur %}
+        <p style="color: red;">⚠️ {{ erreur }}</p>
+    {% endif %}
+
+    <fieldset>
+        <legend>Rechercher un joueur existant</legend>
+        <form method="post" action="/connexion">
+            <input type="text" name="pseudo_chercher" placeholder="Entrez un pseudo..." required>
+            <button type="submit">🔍 Chercher</button>
+        </form>
+    </fieldset>
+
+    {% if REQUEST_VARS.resultat_recherche %}
+    <section style="margin-top: 20px;">
+        <h3>Résultat de la recherche</h3>
+        <table border="1">
+            <tr>
+                <th>ID</th>
+                <th>Pseudo</th>
+                <th>Pavillon</th>
+                <th>Action</th>
+            </tr>
+            <tr>
+                <td>{{ REQUEST_VARS.resultat_recherche[0] }}</td>
+                <td>{{ REQUEST_VARS.resultat_recherche[1] }}</td>
+                <td>{{ REQUEST_VARS.resultat_recherche[2] }}</td>
+                <td>
+                    <form method="post" action="/connexion">
+                        <input type="hidden" name="pseudo_selectionne" value="{{ REQUEST_VARS.resultat_recherche[1] }}">
+                        <button type="submit">✅ Se connecter</button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </section>
+    {% endif %}
+
+    <br>
+
+    <fieldset>
+        <legend>Nouvelle recrue ? Créer un profil</legend>
+        <form method="post" action="/connexion">
+            <input type="text" name="pseudo_creer" placeholder="Choisis un pseudo..." required>
+            <button type="submit">⚓ Créer et Jouer</button>
+        </form>
+    </fieldset>
+
+    <p style="margin-top: 20px;">
+        <a href="/">⬅️ Retour à l'accueil</a>
+    </p>
+{% endblock %}

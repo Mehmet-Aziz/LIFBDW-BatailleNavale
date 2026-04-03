@@ -60,3 +60,14 @@ def get_statistiques_accueil():
     if res_top: stats['top_joueurs'] = res_top
 
     return stats
+
+def chercher_joueur_par_pseudo(pseudo):
+    """Recherche un joueur en base à partir de son pseudo."""
+    query = "SELECT id_joueur, pseudo, code_pays FROM Joueur WHERE pseudo = %s"
+    # On utilise 'one' car le pseudo est UNIQUE
+    return execute_query(query, [pseudo], fetch="one")
+
+def creer_joueur(pseudo, code_pays='FR'):
+    """Ajoute un nouveau joueur en base de données."""
+    query = "INSERT INTO Joueur (pseudo, code_pays) VALUES (%s, %s) RETURNING id_joueur"
+    return execute_query(query, [pseudo, code_pays], fetch="one")
