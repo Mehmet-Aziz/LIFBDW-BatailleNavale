@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentinel Guard - Sécurité Privée</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script>
+tailwind.config = {
+theme: {
+extend: {
+colors: {
+slate: { 850: '#151f32', 900: '#0f172a', 950: '#020617' },
+gold: { 400: '#fbbf24', 500: '#f59e0b' },
+tech: { 500: '#3b82f6', 600: '#2563eb' }
+}
+}
+}
+}
+</script>
+<style>body { background-color: #020617; color: #f8fafc; font-family: 'Segoe UI', sans-serif; }</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// --- COMPOSANTS PARTAGÉS ---
+const ShieldCheck = ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>;
+const Check = ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+
+const FadeIn = ({ children, delay = 0 }) => {
+const [isVisible, setIsVisible] = useState(false);
+const ref = useRef(null);
+useEffect(() => {
+const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setIsVisible(true); }, { threshold: 0.1 });
+if (ref.current) observer.observe(ref.current);
+return () => ref.current && observer.disconnect();
+}, []);
+return (<div ref={ref} style={{ transitionDelay: `${delay}ms` }} className={`transition-all duration-1000 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>{children}</div>);
+};
+
+// --- NAVBAR ---
+const Navbar = ({ setPage, currentPage }) => (
+<nav className="fixed w-full z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 py-4">
+<div className="container mx-auto px-6 flex justify-between items-center">
+<div className="flex items-center gap-2 cursor-pointer" onClick={() => setPage('home')}>
+<ShieldCheck className="text-tech-500" size={32} />
+<h1 className="text-2xl font-bold text-white">SENTINEL<span className="text-tech-500">GUARD</span></h1>
+</div>
+<div className="hidden md:flex gap-6 text-sm font-bold text-slate-300">
+<button onClick={() => setPage('home')} className={`hover:text-white transition-colors ${currentPage === 'home' ? 'text-tech-500' : ''}`}>ACCUEIL</button>
+<button onClick={() => setPage('history')} className={`hover:text-white transition-colors ${currentPage === 'history' ? 'text-tech-500' : ''}`}>NOTRE HISTOIRE</button>
+<button onClick={() => setPage('services')} className={`hover:text-white transition-colors ${currentPage === 'services' ? 'text-tech-500' : ''}`}>SERVICES</button>
+<button onClick={() => setPage('contact')} className={`hover:text-white transition-colors ${currentPage === 'contact' ? 'text-tech-500' : ''}`}>CONTACT</button>
+</div>
+<button onClick={() => setPage('contact')} className="hidden md:block bg-tech-600 hover:bg-tech-500 text-white px-4 py-2 rounded font-bold transition-transform hover:scale-105">DEVIS GRATUIT</button>
+</div>
+</nav>
+);
+
+// --- PAGE 1: ACCUEIL (ENRICHIE) ---
+const PageHome = ({ setPage }) => (
+<div className="pt-20">
+{/* HERO */}
+<header className="relative h-[85vh] flex items-center justify-center overflow-hidden">
+<div className="absolute inset-0 z-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1557597774-9d273605dfa9?ixlib=rb-4.0.3')] bg-cover bg-center"></div>
+<div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
+<div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+<FadeIn>
+<h1 className="text-5xl md:text-7xl font-bold text-white mb-6">SÉCURITÉ <span className="text-tech-500">INTELLIGENTE</span></h1>
+<p className="text-xl text-slate-300 mb-10 font-light">Leader de la protection privée à Lyon. Gardiennage, surveillance et technologie.</p>
+<div className="flex flex-col md:flex-row justify-center gap-4">
+<button onClick={() => setPage('contact')} className="bg-tech-600 px-8 py-4 rounded text-white font-bold text-lg hover:bg-tech-500 transition-colors shadow-[0_0_20px_rgba(37,99,235,0.3)]">Demander un Devis</button>
+<button onClick={() => setPage('services')} className="border border-slate-500 px-8 py-4 rounded text-white font-bold text-lg hover:bg-white/10 transition-colors">Nos Services</button>
+</div>
+</FadeIn>
+</div>
+</header>
+
+{/* NOUVELLE SECTION : PRÉSENTATION */}
+<section className="py-24 bg-slate-950">
+<div className="container mx-auto px-6">
+<div className="flex flex-col md:flex-row items-center gap-16">
+<div className="md:w-1/2 relative">
+<FadeIn>
+{/* Cadre décoratif */}
+<div className="absolute -top-4 -left-4 w-24 h-24 border-t-2 border-l-2 border-tech-500 opacity-50"></div>
+<img
+src="https://images.unsplash.com/photo-1582139329536-e7284fece509?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+alt="Centre de contrôle"
+className="rounded-sm shadow-[0_0_30px_rgba(59,130,246,0.1)] border border-slate-800 grayscale hover:grayscale-0 transition-all duration-700"
+/>
+<div className="absolute -bottom-4 -right-4 w-24 h-24 border-b-2 border-r-2 border-gold-500 opacity-50"></div>
+</FadeIn>
+</div>
+<div className="md:w-1/2">
+<FadeIn delay={200}>
+<h2 className="text-tech-500 font-bold tracking-widest uppercase text-sm mb-3">Notre Mission</h2>
+<h3 className="text-3xl md:text-4xl font-bold text-white mb-6">PROTÉGER CE QUI COMPTE LE PLUS POUR VOUS</h3>
+<p className="text-slate-400 text-lg mb-6 leading-relaxed">
+Depuis plus de 15 ans, Sentinel Guard déploie des solutions de sécurité humaine et électronique pour les entreprises les plus exigeantes de la région.
+</p>
+<p className="text-slate-400 text-lg mb-8 leading-relaxed">
+Notre force réside dans notre approche hybride : nous combinons la rigueur d'agents d'élite (anciens militaires, forces de l'ordre) avec les dernières technologies de surveillance (IA, Drones).
+</p>
+
+<div className="grid grid-cols-2 gap-6 mb-8">
+<div className="border-l-4 border-gold-500 pl-4 bg-slate-900/50 py-2">
+<div className="text-2xl font-bold text-white">98%</div>
+<div className="text-sm text-slate-500 uppercase font-bold">Satisfaction Client</div>
+</div>
+<div className="border-l-4 border-tech-500 pl-4 bg-slate-900/50 py-2">
+<div className="text-2xl font-bold text-white">24/7</div>
+<div className="text-sm text-slate-500 uppercase font-bold">Support Réactif</div>
+</div>
+</div>
+
+<button onClick={() => setPage('history')} className="text-white font-bold border-b-2 border-tech-500 pb-1 hover:text-tech-500 transition-colors flex items-center gap-2">
+DÉCOUVRIR NOTRE HISTOIRE <span className="text-xl">→</span>
+</button>
+</FadeIn>
+</div>
+</div>
+</div>
+</section>
+
+{/* SECTION POURQUOI NOUS */}
+<section className="py-20 bg-slate-900 text-center border-t border-slate-800">
+<div className="container mx-auto px-6">
+<FadeIn>
+<h2 className="text-3xl font-bold mb-12 text-white">Pourquoi choisir Sentinel Guard ?</h2>
+<div className="grid md:grid-cols-3 gap-8">
+<div className="p-8 border border-slate-800 bg-slate-950 hover:border-tech-500 transition-colors group">
+<div className="w-12 h-12 bg-tech-500/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-tech-500 transition-colors">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-tech-500 group-hover:text-white"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+</div>
+<h3 className="text-xl font-bold text-white mb-2">Réactivité Immédiate</h3>
+<p className="text-slate-400">Intervention physique en moins de 4h garantie sur site en cas d'alerte.</p>
+</div>
+<div className="p-8 border border-slate-800 bg-slate-950 hover:border-tech-500 transition-colors group">
+<div className="w-12 h-12 bg-tech-500/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-tech-500 transition-colors">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-tech-500 group-hover:text-white"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+</div>
+<h3 className="text-xl font-bold text-white mb-2">Agents 100% Certifiés</h3>
+<p className="text-slate-400">Tous nos agents possèdent leur carte professionnelle CNAPS à jour et sont formés en continu.</p>
+</div>
+<div className="p-8 border border-slate-800 bg-slate-950 hover:border-tech-500 transition-colors group">
+<div className="w-12 h-12 bg-tech-500/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-tech-500 transition-colors">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-tech-500 group-hover:text-white"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+</div>
+<h3 className="text-xl font-bold text-white mb-2">Technologie de Pointe</h3>
+<p className="text-slate-400">Rapports de rondes numériques, mains courantes électroniques et tracking GPS.</p>
+</div>
+</div>
+</FadeIn>
+</div>
+</section>
+</div>
+);
+
+// --- PAGE 2: HISTOIRE ---
+const PageHistory = () => {
+const milestones = [
+{ year: "2008", title: "La Fondation", desc: "Création de Sentinel Guard par deux anciens officiers. Début des opérations avec une équipe de 5 agents." },
+{ year: "2012", title: "Certification CNAPS", desc: "Obtention de l'agrément officiel et structuration du pôle 'Sécurité Incendie' avec l'embauche de 20 agents SSIAP." },
+{ year: "2015", title: "Expansion Régionale", desc: "Ouverture des agences de Grenoble et Saint-Étienne. Le parc client dépasse les 50 entreprises industrielles." },
+{ year: "2019", title: "Virage Technologique", desc: "Intégration de la vidéosurveillance intelligente et des drones. Sentinel Guard devient un acteur 'Phygital'." },
+{ year: "2024", title: "Leader Régional", desc: "Aujourd'hui, nous sécurisons plus de 150 sites sensibles avec une équipe de 200 collaborateurs." }
+];
+
+return (
+<div className="pt-32 pb-20 min-h-screen">
+<div className="container mx-auto px-6">
+<div className="text-center mb-20">
+<h2 className="text-gold-500 font-bold tracking-widest uppercase text-sm mb-3">Notre Parcours</h2>
+<h3 className="text-4xl md:text-5xl font-bold text-white">15 ANS D'EXCELLENCE</h3>
+<p className="text-slate-400 mt-4 max-w-2xl mx-auto">De la surveillance de chantier à la protection de sites SEVESO, découvrez comment nous avons bâti notre réputation.</p>
+</div>
+<div className="relative max-w-4xl mx-auto">
+<div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-tech-500 via-slate-700 to-slate-900 md:-ml-[1px]"></div>
+{milestones.map((item, index) => (
+<FadeIn key={index} delay={index * 150}>
+<div className={`relative flex flex-col md:flex-row gap-8 mb-12 ${index % 2 === 0 ? 'md:flex-row-reverse' : ''}`}>
+<div className="absolute left-4 md:left-1/2 w-4 h-4 bg-tech-500 rounded-full border-4 border-slate-950 -ml-[7px] mt-6 md:mt-6 shadow-[0_0_10px_#3b82f6]"></div>
+<div className="hidden md:block md:w-1/2"></div>
+<div className="ml-12 md:ml-0 md:w-1/2 px-4">
+<div className="bg-slate-900 border border-slate-800 p-6 rounded-lg hover:border-tech-500 transition-colors relative group">
+<div className={`hidden md:block absolute top-6 w-3 h-3 bg-slate-900 border-t border-r border-slate-800 rotate-45 group-hover:border-tech-500 transition-colors ${index % 2 === 0 ? '-left-[7px] border-t-0 border-r-0 border-b border-l' : '-right-[7px]'}`}></div>
+<span className="text-5xl font-bold text-slate-800 absolute top-2 right-4 select-none opacity-50">{item.year}</span>
+<h4 className="text-xl font-bold text-white mb-2 relative z-10">{item.title}</h4>
+<div className="w-12 h-1 bg-gold-500 mb-4"></div>
+<p className="text-slate-400 leading-relaxed relative z-10">{item.desc}</p>
+</div>
+</div>
+</div>
+</FadeIn>
+))}
+</div>
+</div>
+</div>
+);
+};
+
+// --- PAGE 3: SERVICES ---
+const PageServices = () => (
+<div className="pt-32 pb-20 container mx-auto px-6 min-h-screen">
+<div className="text-center mb-16">
+<h2 className="text-4xl font-bold text-white">Nos Expertises</h2>
+<div className="w-24 h-1 bg-tech-500 mx-auto mt-6"></div>
+</div>
+<div className="grid md:grid-cols-2 gap-8">
+{['Gardiennage Statique', 'Sécurité Incendie (SSIAP)', 'Sécurité Mobile', 'Sûreté Événementielle'].map((title, i) => (
+<div key={i} className="bg-slate-900 p-8 border border-slate-800 hover:border-gold-500 transition-colors group">
+<h3 className="text-2xl font-bold text-white mb-4 group-hover:text-gold-500 transition-colors">{title}</h3>
+<p className="text-slate-400 mb-4">Service haut de gamme assuré par des agents certifiés et équipés des dernières technologies de communication.</p>
+<ul className="text-slate-500 text-sm space-y-2">
+<li className="flex items-center gap-2"><div className="w-1 h-1 bg-tech-500 rounded-full"></div>Rapport temps réel</li>
+<li className="flex items-center gap-2"><div className="w-1 h-1 bg-tech-500 rounded-full"></div>Disponibilité 24/7</li>
+</ul>
+</div>
+))}
+</div>
+</div>
+);
+
+// --- PAGE 4: CONTACT ---
+const PageContact = () => {
+const formRef = useRef();
+const [status, setStatus] = useState('idle');
+
+// ⚠️⚠️⚠️ CONFIG EMAILJS ICI ⚠️⚠️⚠️
+const SERVICE_ID = 'service_ID';
+const TEMPLATE_ID = 'template_ID';
+const PUBLIC_KEY = 'public_KEY';
+
+const handleSubmit = (e) => {
+e.preventDefault();
+setStatus('loading');
+emailjs.sendForm(SERVICE_ID, TEMPLATE_ID, formRef.current, PUBLIC_KEY)
+.then(() => { setStatus('success'); e.target.reset(); setTimeout(() => setStatus('idle'), 5000); })
+.catch((err) => { alert("Erreur: " + JSON.stringify(err)); setStatus('error'); });
+};
+
+return (
+<div className="pt-32 pb-20 container mx-auto px-6 min-h-screen flex items-center justify-center">
+<div className="w-full max-w-2xl bg-slate-900 p-8 md:p-12 border border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+<div className="mb-8 text-center">
+<h2 className="text-3xl font-bold text-white mb-2">Demande de Devis</h2>
+<p className="text-slate-400">Réponse garantie sous 4h ouvrées.</p>
+</div>
+{status === 'success' ? (
+<div className="bg-green-900/20 text-green-400 p-6 border border-green-500 text-center font-bold rounded"><Check className="mx-auto mb-2" size={32}/>Message transmis à la centrale !</div>
+) : (
+<form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+<div className="grid md:grid-cols-2 gap-6">
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Société</label><input type="text" name="company" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none transition-colors" required /></div>
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Nom Contact</label><input type="text" name="name" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none transition-colors" required /></div>
+</div>
+<div className="grid md:grid-cols-2 gap-6">
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Email</label><input type="email" name="email" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none transition-colors" required /></div>
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Téléphone</label><input type="tel" name="phone" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none transition-colors" required /></div>
+</div>
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Type de mission</label><select name="service" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none appearance-none"><option>Gardiennage Statique</option><option>Sécurité Incendie</option><option>Événementiel</option><option>Autre</option></select></div>
+<div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Détails</label><textarea name="message" rows="4" className="w-full bg-slate-950 border border-slate-700 p-3 text-white focus:border-tech-500 outline-none transition-colors" required></textarea></div>
+<button disabled={status === 'loading'} className="w-full bg-tech-600 hover:bg-tech-500 text-white font-bold py-4 transition-all hover:shadow-[0_0_15px_rgba(37,99,235,0.4)]">{status === 'loading' ? 'TRANSMISSION SÉCURISÉE...' : 'ENVOYER LA DEMANDE'}</button>
+</form>
+)}
+</div>
+</div>
+);
+};
+
+// --- APP ROOT ---
+function App() {
+const [page, setPage] = useState('home');
+useEffect(() => { window.scrollTo(0, 0); }, [page]);
+return (
+<div className="flex flex-col min-h-screen justify-between">
+<Navbar setPage={setPage} currentPage={page} />
+<main className="flex-grow">
+{page === 'home' && <PageHome setPage={setPage} />}
+{page === 'history' && <PageHistory />}
+{page === 'services' && <PageServices />}
+{page === 'contact' && <PageContact />}
+</main>
+<footer className="bg-slate-950 border-t border-slate-900 py-8 text-center text-slate-600 text-sm"><p>© 2024 Sentinel Guard - Sécurité Privée & Gardiennage | Agrément CNAPS AGD-069-2024</p></footer>
+</div>
+);
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

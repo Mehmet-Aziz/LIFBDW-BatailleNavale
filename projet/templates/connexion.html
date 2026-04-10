@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block main_content %}
+<h2>Recrutement des Amiraux</h2>
+
+{% if REQUEST_VARS.erreur %}
+    <div style="color: white; background: #e74c3c; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+        ⚠️ {{ REQUEST_VARS.erreur }}
+    </div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+    <!-- Recherche -->
+    <fieldset style="border: 2px solid #3498db; border-radius: 8px; padding: 20px;">
+        <legend style="font-weight: bold; color: #3498db; padding: 0 10px;">🔍 Trouver mon profil</legend>
+        <form method="post" action="/connexion">
+            <input type="hidden" name="action" value="chercher">
+            <input type="text" name="pseudo_chercher" placeholder="Pseudo (ex: nico)" value="{{ REQUEST_VARS.pseudo_cherche }}" required style="width: 70%; padding: 8px;">
+            <button type="submit" style="padding: 8px 15px;">Chercher</button>
+        </form>
+
+        {% if REQUEST_VARS.resultats %}
+            <ul style="list-style: none; padding: 0; margin-top: 20px;">
+            {% for j in REQUEST_VARS.resultats %}
+                <li style="background: #2c76c0; margin-bottom: 10px; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <span><strong>{{ j[1] }}</strong> ({{ j[3] }} {{ j[2] }})</span>
+                    <form method="post" action="/connexion">
+                        <input type="hidden" name="action" value="selectionner">
+                        <input type="hidden" name="id_joueur" value="{{ j[0] }}">
+                        <input type="hidden" name="pseudo" value="{{ j[1] }}">
+                        <button type="submit" style="background: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">✅ Choisir</button>
+                    </form>
+                </li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    </fieldset>
+
+    <!-- Inscription -->
+    <fieldset style="border: 2px solid #2ecc71; border-radius: 8px; padding: 20px;">
+        <legend style="font-weight: bold; color: #2ecc71; padding: 0 10px;">⚓ Nouvelle Recrue</legend>
+        <form method="post" action="/connexion">
+            <input type="hidden" name="action" value="inscrire">
+            <div style="margin-bottom: 10px;">
+                <label>Pseudo :</label><br>
+                <input type="text" name="pseudo_creer" required style="width: 100%; padding: 5px;">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>Nom :</label><br>
+                <input type="text" name="nom" required style="width: 100%; padding: 5px;">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label>Prénom :</label><br>
+                <input type="text" name="prenom" required style="width: 100%; padding: 5px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Date de naissance :</label><br>
+                <input type="date" name="date_naissance" style="width: 100%; padding: 5px;">
+            </div>
+            <button type="submit" style="width: 100%; background: #2ecc71; color: rgb(228, 231, 238); border: none; padding: 10px; font-weight: bold; cursor: pointer;">⚓ Créer mon profil</button>
+        </form>
+    </fieldset>
+</div>
+
+<p style="margin-top: 30px;"><a href="/">⬅️ Retour à l'accueil</a></p>
+{% endblock %}
