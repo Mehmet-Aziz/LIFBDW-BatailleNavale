@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block main_content %}
+    <h2>Bienvenue, {{ message_bienvenue }} !</h2>
+
+    <section class="stats">
+        <h3>📊 Statistiques</h3>
+        <p><strong>{{ REQUEST_VARS.stats.nb_joueurs }}</strong> Joueurs inscrits</p>
+        <p><strong>{{ REQUEST_VARS.stats.nb_parties }}</strong> Batailles menées</p>
+        
+        <h4>🏆 Top Amiraux</h4>
+        <ul>
+            {% for joueur in REQUEST_VARS.stats.top_joueurs %}
+                <li>{{ joueur[0] }} ({{ joueur[1] }} victoires)</li>
+            {% else %}
+                <li>Aucun combat enregistré.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="actions">
+        <a href="/connexion" class="btn">Se connecter</a>
+    </section>
+{% endblock %}
