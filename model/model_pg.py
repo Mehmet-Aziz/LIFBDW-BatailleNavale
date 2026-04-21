@@ -144,7 +144,7 @@ def get_stats_joueur(id_joueur, conn=None):
     return stats
 
 # =====================================================================
-# NOUVELLES FONCTIONS POUR L'ÉTAPE 2 (CRÉATION DE PARTIE)
+# ÉTAPE 2 : CRÉATION DE PARTIE
 # =====================================================================
 
 def get_adversaires_virtuels(conn=None):
@@ -249,5 +249,150 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
     finally:
         # Restauration de l'état initial de la connexion
         conn.autocommit = original_autocommit
+        if close_after:
+            conn.close()
+
+# =====================================================================
+# ÉTAPE 3 : FLOTTILLE ET GRILLES
+# =====================================================================
+
+def initialiser_flottille(id_partie, id_joueur, conn=None):
+    """
+    Crée une flottille pour le joueur dans la partie donnée, 
+    place 5 navires de tailles 5, 4, 3, 3, 2 aléatoirement sans chevauchement 
+    et les enregistre dans la base de données.
+    """
+    close_after = False
+    if not conn:
+        conn = get_connection()
+        close_after = True
+
+    if not conn: return False
+
+    original_autocommit = conn.autocommit
+    conn.autocommit = False
+
+    try:
+        with conn.cursor() as cur:
+            # 1. Créer la Flottille et l'associer au joueur/partie
+            cur.execute("INSERT INTO Flottille (type) VALUES ('Nationale') RETURNING id_flottille")
+            id_flottille = cur.fetchone()[0]
+
+            cur.execute("""
+                INSERT INTO Utiliser_Flottille (id_partie, id_joueur, id_flottille) 
+                VALUES (%s, %s, %s)
+            """, (id_partie, id_joueur, id_flottille))
+
+            # 2. Récupérer des navires de tailles 5, 4, 3, 3, 2 en base de données.
+            tailles_requises = [5, 4, 3, 3, 2]
+            navires_a_placer = []
+            
+            cur.execute("SELECT id_navire, taille FROM Navire")
+            tous_navires = cur.fetchall()
+            
+            # S'il manque des navires en BDD (BDD vierge), on les crée à la volée en fallback
+            if len(tous_navires) < 5:
+                noms_secours = ["Le Terrible", "L'Audacieux", "Le Triomphant", "Le Redoutable", "L'Agile"]
+                types_secours = ["Porte-avion", "Croiseur", "Contre-torpilleur", "Contre-torpilleur", "Torpilleur"]
+                for i, t in enumerate(tailles_requises):
+                    cur.execute("""
+                        INSERT INTO Navire (nom, type, taille) VALUES (%s, %s, %s) RETURNING id_navire
+                    """, (noms_secours[i], types_secours[i], t))
+                    navires_a_placer.append({'id_navire': cur.fetchone()[0], 'taille': t})
+            else:
+                # On associe les bons navires de la DB à nos tailles requises
+                navs_dispos = list(tous_navires)
+                for t in tailles_requises:
+                    for nav in navs_dispos:
+                        if nav[1] == t:
+                            navires_a_placer.append({'id_navire': nav[0], 'taille': nav[1]})
+                            navs_dispos.remove(nav) 
+                            break
+
+            # 3. Placer aléatoirement sur une grille de 10x10 sans chevauchement
+            cases_occupees = set()
+            placements_finaux = []
+
+            for navire in navires_a_placer:
+                taille = navire['taille']
+                place = False
+                
+                while not place:
+                    sens = random.choice(['H', 'V'])
+                    
+                    if sens == 'H':
+                        x = random.randint(1, 11 - taille)
+                        y = random.randint(1, 10)
+                        cases_testees = [(x + i, y) for i in range(taille)]
+                    else:
+                        x = random.randint(1, 10)
+                        y = random.randint(1, 11 - taille)
+                        cases_testees = [(x, y + i) for i in range(taille)]
+                    
+                    if all(case not in cases_occupees for case in cases_testees):
+                        cases_occupees.update(cases_testees)
+                        placements_finaux.append((
+                            id_flottille, 
+                            navire['id_navire'], 
+                            x, y, sens, 'Opérationnel'
+                        ))
+                        place = True
+
+            # 4. Insertion dans Composition_Flottille
+            cur.executemany("""
+                INSERT INTO Composition_Flottille (id_flottille, id_navire, x, y, sens, etat) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, placements_finaux)
+
+            conn.commit()
+            return True
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Erreur lors de l'initialisation de la flottille : {e}")
+        return False
+    finally:
+        conn.autocommit = original_autocommit
+        if close_after:
+            conn.close()
+
+def get_cases_flottille(id_partie, id_joueur, conn=None):
+    """
+    Récupère toutes les coordonnées (x-y) occupées par les navires d'un joueur
+    pour les afficher sur le frontend.
+    """
+    close_after = False
+    if not conn:
+        conn = get_connection()
+        close_after = True
+
+    if not conn: return []
+
+    cases_occupees = []
+    
+    query = """
+        SELECT cf.x, cf.y, cf.sens, n.taille
+        FROM Composition_Flottille cf
+        JOIN Navire n ON cf.id_navire = n.id_navire
+        JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
+        WHERE uf.id_partie = %s AND uf.id_joueur = %s
+    """
+    
+    try:
+        res = execute_query(query, (id_partie, id_joueur), conn=conn)
+        if res:
+            for x_start, y_start, sens, taille in res:
+                for i in range(taille):
+                    if sens == 'H':
+                        # Format "x-y" pour que ce soit facile à lire en Jinja (HTML)
+                        cases_occupees.append(f"{x_start + i}-{y_start}")
+                    else:
+                        cases_occupees.append(f"{x_start}-{y_start + i}")
+                        
+        return cases_occupees
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des cases de la flottille : {e}")
+        return []
+    finally:
         if close_after:
             conn.close()

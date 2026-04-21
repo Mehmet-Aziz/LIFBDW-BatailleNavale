@@ -17,3 +17,13 @@ template = "connexion.html"
 url = "parties"  # ⬅️ Le slash a été retiré ici !
 controleur = "controleurs/parties.py"
 template = "parties.html"
+
+[[routes]]
+url = "jeu"
+controleur = "controleurs/jeu.py"
+template = "jeu.html"
+
+[[routes]]
+url = "tirer"
+controleur = "controleurs/tirer.py"
+template = "api_reponse.html"
