@@ -1,14 +1,14 @@
 [[routes]]
-url = ""  # Route pour la racine (http://localhost:4242/)
+url = ""  
 controleur = "controleurs/accueil.py"
 template = "accueil.html"
 
 [[routes]]
-url = "accueil"  # Route explicite (http://localhost:4242/accueil)
+url = "accueil"  
 controleur = "controleurs/accueil.py"
 template = "accueil.html"
 
 [[routes]]
-url = "connexion"  # Route explicite (http://localhost:4242/connexion)
+url = "connexion"  # ⬅️ Le slash a été retiré ici !
 controleur = "controleurs/connexion.py"
 template = "connexion.html"

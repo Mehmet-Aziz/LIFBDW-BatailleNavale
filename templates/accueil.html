@@ -1,24 +1,64 @@
 {% extends "base.html" %}
 
 {% block main_content %}
-    <h2>Bienvenue, {{ message_bienvenue }} !</h2>
+    <h2>Bienvenue, {{ REQUEST_VARS.message_bienvenue }} !</h2>
 
-    <section class="stats">
-        <h3>📊 Statistiques</h3>
-        <p><strong>{{ REQUEST_VARS.stats.nb_joueurs }}</strong> Joueurs inscrits</p>
-        <p><strong>{{ REQUEST_VARS.stats.nb_parties }}</strong> Batailles menées</p>
+    <!-- Conteneur flex pour afficher les blocs côte à côte sur grand écran -->
+    <div class="dashboard-container" style="display: flex; gap: 20px; flex-wrap: wrap;">
         
-        <h4>🏆 Top Amiraux</h4>
-        <ul>
-            {% for joueur in REQUEST_VARS.stats.top_joueurs %}
-                <li>{{ joueur[0] }} ({{ joueur[1] }} victoires)</li>
-            {% else %}
-                <li>Aucun combat enregistré.</li>
-            {% endfor %}
-        </ul>
-    </section>
+        <!-- Bloc : Statistiques globales (existant) -->
+        <section class="stats global-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px;">
+            <h3>📊 Statistiques Générales</h3>
+            <p><strong>{{ REQUEST_VARS.stats.nb_joueurs }}</strong> Joueurs inscrits</p>
+            <p><strong>{{ REQUEST_VARS.stats.nb_parties }}</strong> Batailles menées</p>
+            
+            <h4>🏆 Top Amiraux</h4>
+            <ul>
+                {% for joueur in REQUEST_VARS.stats.top_joueurs %}
+                    <li>{{ joueur[0] }} ({{ joueur[1] }} victoires)</li>
+                {% else %}
+                    <li>Aucun combat enregistré.</li>
+                {% endfor %}
+            </ul>
+        </section>
 
-    <section class="actions">
-        <a href="/connexion" class="btn">Se connecter</a>
+        <!-- Bloc : Statistiques du joueur (Nouvelle zone) -->
+        {% if REQUEST_VARS.stats_joueur %}
+        <section class="stats personal-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #f0f8ff; border: 1px solid #007bff; border-radius: 8px;">
+            <h3 style="color: #0056b3;">👤 Vos États de Service</h3>
+            
+            <p><strong>{{ REQUEST_VARS.stats_joueur.parties_finies_3m }}</strong> batailles terminées (3 derniers mois)</p>
+            <p><strong>{{ REQUEST_VARS.stats_joueur.moyenne_tours }}</strong> tours par partie en moyenne</p>
+            <p><strong>{{ REQUEST_VARS.stats_joueur.points_2026 }}</strong> points cumulés en 2026</p>
+            
+            <hr style="border-top: 1px solid #cce5ff; margin: 15px 0;">
+            
+            <h4>🎖️ Victoires par niveau d'IA</h4>
+            <ul>
+                {% for niveau in REQUEST_VARS.stats_joueur.victoires_par_niveau %}
+                    <li><strong>{{ niveau[0] }}</strong> : {{ niveau[1] }} victoire(s)</li>
+                {% else %}
+                    <li>Aucune victoire enregistrée contre l'IA.</li>
+                {% endfor %}
+            </ul>
+
+            <h4>🃏 Arsenal (Cartes piochées)</h4>
+            <ul>
+                {% for carte in REQUEST_VARS.stats_joueur.cartes_tirees %}
+                    <li><strong>{{ carte[0] }}</strong> : {{ carte[1] }} fois</li>
+                {% else %}
+                    <li>Aucune carte piochée pour le moment.</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+    </div>
+
+    <!-- N'affiche le bouton de connexion que si le joueur n'est PAS connecté -->
+    {% if not REQUEST_VARS.stats_joueur %}
+    <section class="actions" style="margin-top: 20px;">
+        <a href="/connexion" class="btn" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
     </section>
+    {% endif %}
 {% endblock %}
