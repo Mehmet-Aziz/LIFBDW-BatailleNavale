@@ -1,1 +1,61 @@
-Bonjour
+{% extends "base.html" %}
+
+{% block title %}Créer une Nouvelle Bataille - Bataille Navale 2026{% endblock %}
+
+{% block main_content %}
+<div class="dashboard-container" style="max-width: 600px; margin: 0 auto; background: #073642; padding: 30px; border-radius: 8px; border: 1px solid var(--action-orange);">
+    <h2 style="color: var(--action-orange); text-align: center; border-bottom: 2px solid var(--action-orange); padding-bottom: 10px;">Préparer une Nouvelle Bataille</h2>
+
+    {% if REQUEST_VARS.message_erreur %}
+        <div style="background: #dc3545; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>Erreur :</strong> {{ REQUEST_VARS.message_erreur }}
+        </div>
+    {% endif %}
+
+    {% if REQUEST_VARS.message_succes %}
+        <div style="background: #28a745; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>Succès :</strong> {{ REQUEST_VARS.message_succes }}
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="/jouer" class="btn" style="padding: 10px 20px; background: var(--action-orange); color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                Rejoindre le poste de commandement
+            </a>
+        </div>
+    {% else %}
+        {% if SESSION.id_joueur %}
+            <form method="POST" action="/parties" style="display: flex; flex-direction: column; gap: 20px;">
+                
+                <!-- Sélection de l'adversaire -->
+                <div style="display: flex; flex-direction: column;">
+                    <label for="id_adversaire" style="font-weight: bold; margin-bottom: 5px;">Choisir une Intelligence Artificielle :</label>
+                    <select name="id_adversaire" id="id_adversaire" required style="padding: 10px; border-radius: 5px; border: none; background: #fdf6e3; color: #002b36;">
+                        <option value="">-- Sélectionner un adversaire --</option>
+                        {% for adv in REQUEST_VARS.adversaires %}
+                            <option value="{{ adv[0] }}">
+                                {{ adv[1] }} (Niveau : {{ adv[2] }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Sélection de la distribution -->
+                <div style="display: flex; flex-direction: column;">
+                    <label for="nom_distribution" style="font-weight: bold; margin-bottom: 5px;">Type de logistique (Distribution) :</label>
+                    <select name="nom_distribution" id="nom_distribution" required style="padding: 10px; border-radius: 5px; border: none; background: #fdf6e3; color: #002b36;">
+                        <option value="">-- Sélectionner une distribution --</option>
+                        {% for dist in REQUEST_VARS.distributions %}
+                            <option value="{{ dist }}">{{ dist }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Bouton de soumission -->
+                <button type="submit" style="padding: 12px; background: var(--action-orange); color: #fdf6e3; border: none; border-radius: 5px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px;">
+                    Valider le déploiement
+                </button>
+            </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

@@ -12,3 +12,8 @@ template = "accueil.html"
 url = "connexion"  # ⬅️ Le slash a été retiré ici !
 controleur = "controleurs/connexion.py"
 template = "connexion.html"
+
+[[routes]]
+url = "parties"  # ⬅️ Le slash a été retiré ici !
+controleur = "controleurs/parties.py"
+template = "parties.html"

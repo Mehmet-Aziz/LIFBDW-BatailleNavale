@@ -1,6 +1,7 @@
 import psycopg
 import tomllib
 from logzero import logger
+import random
 
 def get_connection():
     """Garde cette fonction en secours, mais elle ne devrait plus être la méthode principale."""
@@ -57,7 +58,6 @@ def get_statistiques_accueil(conn=None):
     res_p = execute_query("SELECT COUNT(*) FROM Partie", fetch="one", conn=conn)
     if res_p: stats['nb_parties'] = res_p[0]
 
-    # CORRECTION ICI : La colonne est_gagnant n'existe pas, on utilise id_vainqueur de la table Partie
     query_top = """
         SELECT j.pseudo, COUNT(p.id_partie) as victoires
         FROM Joueur j
@@ -142,3 +142,112 @@ def get_stats_joueur(id_joueur, conn=None):
     if res5: stats['cartes_tirees'] = res5
     
     return stats
+
+# =====================================================================
+# NOUVELLES FONCTIONS POUR L'ÉTAPE 2 (CRÉATION DE PARTIE)
+# =====================================================================
+
+def get_adversaires_virtuels(conn=None):
+    """Récupère la liste des adversaires IA pour le formulaire"""
+    query = """
+        SELECT j.id_joueur, j.pseudo, v.niveau 
+        FROM Virtuel v 
+        JOIN Joueur j ON v.id_joueur = j.id_joueur
+        ORDER BY 
+            CASE v.niveau 
+                WHEN 'Faible' THEN 1 
+                WHEN 'Intermédiaire' THEN 2 
+                WHEN 'Expert' THEN 3 
+            END;
+    """
+    return execute_query(query, conn=conn)
+
+def get_distributions(conn=None):
+    """Récupère le nom de toutes les distributions disponibles"""
+    res = execute_query("SELECT nom FROM Distribution ORDER BY nom", conn=conn)
+    return [row[0] for row in res] if res else []
+
+def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None):
+    """
+    Crée la partie, inscrit les joueurs, crée la pioche et génère les 100 cartes.
+    Le tout est géré dans une transaction pour éviter les données orphelines.
+    """
+    close_after = False
+    if not conn:
+        conn = get_connection()
+        close_after = True
+
+    if not conn: return None
+
+    # Désactiver l'autocommit pour gérer la transaction manuellement
+    original_autocommit = conn.autocommit
+    conn.autocommit = False
+
+    try:
+        with conn.cursor() as cur:
+            # 1. Création de la Partie
+            cur.execute("INSERT INTO Partie (etat) VALUES ('Créée') RETURNING id_partie")
+            id_partie = cur.fetchone()[0]
+
+            # 2. Inscription des participants (Humain et Virtuel)
+            cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_joueur))
+            cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_adversaire))
+
+            # 3. Création de la Pioche
+            cur.execute(
+                "INSERT INTO Pioche (nom_distribution, id_partie) VALUES (%s, %s) RETURNING id_pioche", 
+                (nom_distribution, id_partie)
+            )
+            id_pioche = cur.fetchone()[0]
+
+            # 4. Mise à jour de la clé étrangère dans Partie
+            cur.execute("UPDATE Partie SET id_pioche = %s WHERE id_partie = %s", (id_pioche, id_partie))
+
+            # 5. Récupération des pourcentages de la distribution choisie
+            query_dist = """
+                SELECT pourcentage_missile, pourcentage_rejoue, pourcentage_vide, 
+                       pourcentage_mpm, pourcentage_leurre, pourcentage_willy, 
+                       pourcentage_mega, pourcentage_etoile, pourcentage_passe, pourcentage_oups 
+                FROM Distribution WHERE nom = %s
+            """
+            cur.execute(query_dist, (nom_distribution,))
+            dist = cur.fetchone()
+
+            if not dist:
+                raise ValueError("Distribution introuvable.")
+
+            # Correspondance stricte avec les codes de Type_Carte (10 caractères max)
+            codes_types = ['C_MISSILE', 'C_REJOUE', 'C_VIDE', 'C_MPM', 'C_LEURRE', 'C_WILLY', 'C_MEGA', 'C_ETOILE', 'C_PASSE', 'C_OUPS']
+            
+            # 6. Génération du deck (exactement 100 cartes)
+            deck = []
+            for i in range(10):
+                # Ajoute 'n' fois le code de la carte en fonction de son pourcentage
+                deck.extend([codes_types[i]] * dist[i])
+
+            # Mélange aléatoire du deck pour le tirage
+            random.shuffle(deck)
+
+            # 7. Insertion en masse (Batch Insert) des 100 cartes
+            # On utilise executemany pour des performances optimales
+            cartes_data = [(code, id_pioche, rang) for rang, code in enumerate(deck, start=1)]
+            
+            query_insert_cartes = """
+                INSERT INTO Carte (code_type_carte, id_pioche, rang_apparition) 
+                VALUES (%s, %s, %s)
+            """
+            cur.executemany(query_insert_cartes, cartes_data)
+
+            # Validation de toute la transaction
+            conn.commit()
+            return id_partie
+
+    except Exception as e:
+        conn.rollback() # Annulation en cas d'erreur
+        logger.error(f"Erreur transaction création partie : {e}")
+        return None
+    finally:
+        # Restauration de l'état initial de la connexion
+        conn.autocommit = original_autocommit
+        if close_after:
+            conn.close()

@@ -3,16 +3,16 @@
 {% block main_content %}
     <h2>Bienvenue, {{ REQUEST_VARS.message_bienvenue }} !</h2>
 
-    <!-- Conteneur flex pour afficher les blocs côte à côte sur grand écran -->
-    <div class="dashboard-container" style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <!-- Conteneur flex pour afficher les blocs statistiques -->
+    <div class="dashboard-container" style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
         
-        <!-- Bloc : Statistiques globales (existant) -->
-        <section class="stats global-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px;">
-            <h3>📊 Statistiques Générales</h3>
+        <!-- Bloc : Statistiques globales -->
+        <section class="stats global-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px; color: #333;">
+            <h3 style="color: #333;">📊 Statistiques Générales</h3>
             <p><strong>{{ REQUEST_VARS.stats.nb_joueurs }}</strong> Joueurs inscrits</p>
             <p><strong>{{ REQUEST_VARS.stats.nb_parties }}</strong> Batailles menées</p>
             
-            <h4>🏆 Top Amiraux</h4>
+            <h4 style="color: #333;">🏆 Top Amiraux</h4>
             <ul>
                 {% for joueur in REQUEST_VARS.stats.top_joueurs %}
                     <li>{{ joueur[0] }} ({{ joueur[1] }} victoires)</li>
@@ -22,9 +22,9 @@
             </ul>
         </section>
 
-        <!-- Bloc : Statistiques du joueur (Nouvelle zone) -->
+        <!-- Bloc : Statistiques du joueur -->
         {% if REQUEST_VARS.stats_joueur %}
-        <section class="stats personal-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #f0f8ff; border: 1px solid #007bff; border-radius: 8px;">
+        <section class="stats personal-stats" style="flex: 1; min-width: 300px; padding: 20px; background: #f0f8ff; border: 1px solid #007bff; border-radius: 8px; color: #333;">
             <h3 style="color: #0056b3;">👤 Vos États de Service</h3>
             
             <p><strong>{{ REQUEST_VARS.stats_joueur.parties_finies_3m }}</strong> batailles terminées (3 derniers mois)</p>
@@ -33,7 +33,7 @@
             
             <hr style="border-top: 1px solid #cce5ff; margin: 15px 0;">
             
-            <h4>🎖️ Victoires par niveau d'IA</h4>
+            <h4 style="color: #0056b3;">🎖️ Victoires par niveau d'IA</h4>
             <ul>
                 {% for niveau in REQUEST_VARS.stats_joueur.victoires_par_niveau %}
                     <li><strong>{{ niveau[0] }}</strong> : {{ niveau[1] }} victoire(s)</li>
@@ -41,24 +41,62 @@
                     <li>Aucune victoire enregistrée contre l'IA.</li>
                 {% endfor %}
             </ul>
-
-            <h4>🃏 Arsenal (Cartes piochées)</h4>
-            <ul>
-                {% for carte in REQUEST_VARS.stats_joueur.cartes_tirees %}
-                    <li><strong>{{ carte[0] }}</strong> : {{ carte[1] }} fois</li>
-                {% else %}
-                    <li>Aucune carte piochée pour le moment.</li>
-                {% endfor %}
-            </ul>
         </section>
         {% endif %}
 
     </div>
 
-    <!-- N'affiche le bouton de connexion que si le joueur n'est PAS connecté -->
-    {% if not REQUEST_VARS.stats_joueur %}
+    <!-- =========================================================== -->
+    <!-- NOUVELLE ZONE : CRÉATION DE PARTIE (Visible si connecté)    -->
+    <!-- =========================================================== -->
+    {% if SESSION.id_joueur %}
+    <section class="create-game-section" style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; border-left: 4px solid var(--action-orange);">
+        <h3 style="color: var(--action-orange); margin-top: 0;">⚔️ Lancer une Nouvelle Bataille</h3>
+        
+        {% if REQUEST_VARS.message_erreur_partie %}
+            <div style="background: #dc3545; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                <strong>Erreur :</strong> {{ REQUEST_VARS.message_erreur_partie }}
+            </div>
+        {% endif %}
+
+        {% if REQUEST_VARS.message_succes %}
+            <div style="background: #28a745; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                <strong>Succès :</strong> {{ REQUEST_VARS.message_succes }}
+            </div>
+        {% endif %}
+
+        <form method="POST" action="/accueil" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+            
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 200px;">
+                <label for="id_adversaire" style="font-weight: bold; margin-bottom: 5px;">Intelligence Artificielle :</label>
+                <select name="id_adversaire" id="id_adversaire" required style="padding: 10px; border-radius: 5px; border: none; background: #fdf6e3; color: #002b36;">
+                    <option value="">-- Choisir l'adversaire --</option>
+                    {% for adv in REQUEST_VARS.adversaires %}
+                        <option value="{{ adv[0] }}">{{ adv[1] }} (Niveau : {{ adv[2] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 200px;">
+                <label for="nom_distribution" style="font-weight: bold; margin-bottom: 5px;">Type de logistique :</label>
+                <select name="nom_distribution" id="nom_distribution" required style="padding: 10px; border-radius: 5px; border: none; background: #fdf6e3; color: #002b36;">
+                    <option value="">-- Choisir la distribution --</option>
+                    {% for dist in REQUEST_VARS.distributions %}
+                        <option value="{{ dist }}">{{ dist }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" style="padding: 10px 20px; height: 40px; background: var(--action-orange); color: #fdf6e3; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                Valider le déploiement
+            </button>
+        </form>
+    </section>
+    
+    {% else %}
     <section class="actions" style="margin-top: 20px;">
-        <a href="/connexion" class="btn" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
+        <a href="/connexion" class="btn" style="padding: 10px 20px; background: var(--action-orange); color: white; text-decoration: none; border-radius: 5px;">Se connecter pour jouer</a>
     </section>
     {% endif %}
+    
 {% endblock %}
