@@ -2,22 +2,6 @@ import json
 import random
 import model.model_pg as db
 
-def calculer_nouveau_score(id_partie, id_joueur_score, conn):
-    """Calcul précis du score : 100 * (Touches / Total)"""
-    import model.model_pg as db 
-    query = """
-        SELECT COUNT(*) as total, 
-               SUM(CASE WHEN t.resultat IN ('Touché', 'Coulé') THEN 1 ELSE 0 END) as touches 
-        FROM Tir t 
-        JOIN Tour tour ON t.id_tour = tour.id_tour 
-        WHERE tour.id_partie = %s AND tour.id_joueur = %s
-    """
-    res = db.execute_query(query, (id_partie, id_joueur_score), fetch="one", conn=conn)
-    if not res or res[0] == 0: return 0
-    total = res[0]
-    touches = res[1] or 0
-    return int(100 * (touches / total))
-
 def appliquer_oups(id_partie, id_tireur, id_tour, conn):
     """Effet de Mauvaise Manip (C_OUPS) : Touche un de ses propres navires au hasard."""
     import random
@@ -32,13 +16,13 @@ def appliquer_oups(id_partie, id_tireur, id_tour, conn):
     if cases_propres:
         case = random.choice(cases_propres)
         cx, cy = case[0], case[1]
-        
         id_navire, _ = db.verifier_impact(id_partie, id_tireur, cx, cy, conn=conn)
         res_tir = "Touché"
+        db.enregistrer_tir_db(id_tour, cx, cy, res_tir, conn=conn)
         if id_navire and db.est_navire_coule(id_partie, id_tireur, id_navire, conn=conn):
             res_tir = "Coulé"
             db.couler_navire(id_partie, id_tireur, id_navire, conn=conn)
-        db.enregistrer_tir_db(id_tour, cx, cy, res_tir, conn=conn)
+            db.execute_query("UPDATE Tir SET resultat = 'Coulé' WHERE id_tour = %s AND x = %s AND y = %s", (id_tour, cx, cy), fetch=None, conn=conn)
         return {"x": cx, "y": cy, "resultat": res_tir}
     return None
 
@@ -46,7 +30,6 @@ def appliquer_tirs_carte(code_carte, x_centre, y_centre, id_partie, id_tireur, i
     """Génère les multiples impacts en fonction de la carte (Méga-bombe, Etoile...)"""
     import model.model_pg as db 
     cases_a_viser = []
-    
     if code_carte == 'C_MEGA': 
         cases_a_viser = [(x_centre + dx, y_centre + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1]]
     elif code_carte == 'C_ETOILE': 
@@ -58,25 +41,20 @@ def appliquer_tirs_carte(code_carte, x_centre, y_centre, id_partie, id_tireur, i
     for cx, cy in cases_a_viser:
         if 1 <= cx <= 10 and 1 <= cy <= 10:
             id_piege, type_piege = db.verifier_piege(id_partie, id_cible, cx, cy, conn)
-            
             if id_piege:
                 db.execute_query("UPDATE Contenu_Grille SET etat = 'Détruit' WHERE id_contenu = %s", (id_piege,), fetch=None, conn=conn)
-                if type_piege == 'Orque':
-                    res_tir = 'Orque'
-                    db.detruire_plus_petits_navires(id_partie, id_tireur, 3, conn)
-                else:
-                    res_tir = 'Leurre'
+                res_tir = 'Orque' if type_piege == 'Orque' else 'Leurre'
+                if type_piege == 'Orque': db.detruire_plus_petits_navires(id_partie, id_tireur, 3, conn)
+                db.enregistrer_tir_db(id_tour, cx, cy, res_tir, conn=conn)
             else:
                 id_navire, _ = db.verifier_impact(id_partie, id_cible, cx, cy, conn=conn)
                 res_tir = "Touché" if id_navire else "Eau"
-                
+                db.enregistrer_tir_db(id_tour, cx, cy, res_tir, conn=conn)
                 if id_navire and db.est_navire_coule(id_partie, id_cible, id_navire, conn=conn):
                     res_tir = "Coulé"
                     db.couler_navire(id_partie, id_cible, id_navire, conn=conn)
-            
-            db.enregistrer_tir_db(id_tour, cx, cy, res_tir, conn=conn)
+                    db.execute_query("UPDATE Tir SET resultat = 'Coulé' WHERE id_tour = %s AND x = %s AND y = %s", (id_tour, cx, cy), fetch=None, conn=conn)
             impacts.append({"x": cx, "y": cy, "resultat": res_tir})
-            
     return impacts
 
 # ==============================================================================
@@ -94,11 +72,7 @@ if not id_partie or not x_val or not y_val or not id_joueur:
 else:
     x, y = int(x_val), int(y_val)
     id_partie = int(id_partie)
-
-    res_adv = db.execute_query(
-        "SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s",
-        (id_partie, id_joueur), fetch="one", conn=conn
-    )
+    res_adv = db.execute_query("SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s", (id_partie, id_joueur), fetch="one", conn=conn)
     id_adversaire = res_adv[0] if res_adv else None
 
     if not id_adversaire:
@@ -111,15 +85,13 @@ else:
         nom_carte_humain = "Tir Classique"
         resultat_humain = "Eau"
 
-        # TOUR HUMAIN
-        id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
-        
         if est_rejoue:
             nom_carte_humain = "Tir Supplémentaire (Bonus)"
+            id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
             impacts_humain = appliquer_tirs_carte('C_MISSILE', x, y, id_partie, id_joueur, id_adversaire, id_tour_humain, conn)
         else:
+            id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
             code_carte_humain, nom_carte_humain = db.piocher_carte_partie(id_partie, id_joueur, id_tour_humain, conn=conn)
-            
             if code_carte_humain == 'C_PASSE':
                 resultat_humain = "Passe"
             elif code_carte_humain == 'C_OUPS':
@@ -134,20 +106,14 @@ else:
                 extra_humain['vide_resultat'] = (id_navire is None)
                 ia_doit_jouer = False 
             else:
-                if code_carte_humain == 'C_WILLY':
-                    extra_humain['willy'] = db.placer_piege(id_partie, id_joueur, 'Orque', conn)
-                elif code_carte_humain == 'C_LEURRE':
-                    extra_humain['leurre'] = db.placer_piege(id_partie, id_joueur, 'Leurre', conn)
-                elif code_carte_humain == 'C_MPM':
-                    extra_humain['mpm'] = db.appliquer_mpm(id_partie, id_joueur, id_adversaire, conn)
-
+                if code_carte_humain == 'C_WILLY': extra_humain['willy'] = db.placer_piege(id_partie, id_joueur, 'Orque', conn)
+                elif code_carte_humain == 'C_LEURRE': extra_humain['leurre'] = db.placer_piege(id_partie, id_joueur, 'Leurre', conn)
+                elif code_carte_humain == 'C_MPM': extra_humain['mpm'] = db.appliquer_mpm(id_partie, id_joueur, id_adversaire, conn)
                 impacts_humain = appliquer_tirs_carte(code_carte_humain, x, y, id_partie, id_joueur, id_adversaire, id_tour_humain, conn)
-                
                 if code_carte_humain == 'C_REJOUE':
                     extra_humain['rejoue'] = True
                     ia_doit_jouer = False 
 
-        # Calcul du résultat pour la case cliquée (évite next() pour NameError)
         for imp in impacts_humain:
             if imp['x'] == x and imp['y'] == y:
                 resultat_humain = imp['resultat']
@@ -156,7 +122,6 @@ else:
         fin_partie = db.est_flotte_detruite(id_partie, id_adversaire, conn)
         vainqueur = "humain" if fin_partie else None
 
-        # TOUR IA
         tir_ia_data = {"impacts": []}
         if not fin_partie and ia_doit_jouer:
             tours_ia_restants = 2 if code_carte_humain == 'C_PASSE' else 1
@@ -164,43 +129,31 @@ else:
                 tours_ia_restants -= 1
                 id_tour_ia = db.creer_tour(id_partie, id_adversaire, conn=conn)
                 code_carte_ia, nom_carte_ia = db.piocher_carte_partie(id_partie, id_adversaire, id_tour_ia, conn=conn)
-                
                 tir_ia_data["carte"] = code_carte_ia
                 tir_ia_data["nom_carte"] = nom_carte_ia
-
-                if code_carte_ia == 'C_PASSE':
-                    tir_ia_data["passe"] = True
+                if code_carte_ia == 'C_PASSE': tir_ia_data["passe"] = True
                 elif code_carte_ia == 'C_OUPS':
                     imp = appliquer_oups(id_partie, id_adversaire, id_tour_ia, conn)
                     if imp: tir_ia_data["oups"] = imp
-                elif code_carte_ia == 'C_VIDE':
-                    tours_ia_restants += 1
+                elif code_carte_ia == 'C_VIDE': tours_ia_restants += 1
                 else:
-                    if code_carte_ia == 'C_WILLY':
-                        db.placer_piege(id_partie, id_adversaire, 'Orque', conn)
-                    elif code_carte_ia == 'C_LEURRE':
-                        db.placer_piege(id_partie, id_adversaire, 'Leurre', conn)
-                    elif code_carte_ia == 'C_MPM':
-                        db.appliquer_mpm(id_partie, id_adversaire, id_joueur, conn)
-
+                    if code_carte_ia == 'C_WILLY': db.placer_piege(id_partie, id_adversaire, 'Orque', conn)
+                    elif code_carte_ia == 'C_LEURRE': db.placer_piege(id_partie, id_adversaire, 'Leurre', conn)
+                    elif code_carte_ia == 'C_MPM': db.appliquer_mpm(id_partie, id_adversaire, id_joueur, conn)
                     cible = db.ia_jouer_tour(id_partie, conn=conn)
                     if cible:
                         cx, cy = cible
                         impacts_ia = appliquer_tirs_carte(code_carte_ia, cx, cy, id_partie, id_adversaire, id_joueur, id_tour_ia, conn)
                         tir_ia_data["impacts"].extend(impacts_ia)
-                        if code_carte_ia == 'C_REJOUE':
-                            tours_ia_restants += 1
+                        if code_carte_ia == 'C_REJOUE': tours_ia_restants += 1
                 fin_partie = db.est_flotte_detruite(id_partie, id_joueur, conn)
                 if fin_partie: vainqueur = "ia"
 
-        # Scores et fin
-        score_v, score_p = 0, 0
+        score_affiche = 0
         if fin_partie:
             id_v = id_joueur if vainqueur == "humain" else id_adversaire
             id_p = id_adversaire if vainqueur == "humain" else id_joueur
-            score_v = calculer_nouveau_score(id_partie, id_v, conn)
-            score_p = calculer_nouveau_score(id_partie, id_p, conn)
-            db.execute_query("UPDATE Partie SET etat = 'Terminé', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s", (id_v, score_v, score_p, id_partie), conn=conn)
+            score_affiche = db.cloturer_partie_db(id_partie, id_v, id_p, conn)
 
         REQUEST_VARS['json_data'] = json.dumps({
             "status": "success",
@@ -211,6 +164,6 @@ else:
             "extra": extra_humain,
             "fin_partie": fin_partie,
             "vainqueur": vainqueur,
-            "score_vainqueur": score_v,
+            "score_final": score_affiche,
             "tir_ia": tir_ia_data if (ia_doit_jouer and not (fin_partie and vainqueur == 'humain')) else None
         })

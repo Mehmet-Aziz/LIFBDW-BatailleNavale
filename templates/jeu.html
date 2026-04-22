@@ -38,6 +38,7 @@
         <!-- Grille de l'adversaire : Grille de Tirs -->
         <div class="grid-panel">
             <h3>Grille de Tirs</h3>
+            <!-- Ajout d'un ID pour pouvoir cibler facilement la grille et bloquer les survols -->
             <div class="grid" id="grid-tirs">
                 {% for y in range(1, 11) %}
                     {% for x in range(1, 11) %}
@@ -84,6 +85,17 @@
     .cell.navire   { background-color:#93a1a1; border:1px solid #586e75; }
     .target-cell   { cursor:crosshair; }
     .target-cell:hover:not(.used) { background-color:#2aa198; transform:scale(1.05); }
+    
+    /* === NOUVEAU : STYLES QUAND C'EST LE TOUR DE L'IA === */
+    #grid-tirs.ia-turn .target-cell {
+        cursor: not-allowed; /* Affiche un curseur interdit (rouge souvent selon l'OS) */
+    }
+    #grid-tirs.ia-turn .target-cell:hover:not(.used) {
+        background-color: #073642; /* Annule l'effet de surbrillance */
+        transform: none; /* Annule le petit zoom */
+    }
+    /* ==================================================== */
+
     .cell.touche   { background-color:#dc322f; color:white; }
     .cell.eau      { background-color:#268bd2; }
     .cell.coule    { background-color:#000000; color:white; border:1px solid #dc322f; }
@@ -157,7 +169,8 @@ function previewCases(x, y, rayon) {
 
 document.querySelectorAll('.target-cell').forEach(cell => {
     cell.addEventListener('mouseenter', function() {
-        if (!carteCourrante) return;
+        // NOUVEAU : Si c'est le tour de l'IA (tirEnCours est vrai), on ne prévisualise rien du tout !
+        if (!carteCourrante || tirEnCours) return; 
         const [, xs, ys] = this.id.split('-');
         const x = parseInt(xs), y = parseInt(ys);
         if (carteCourrante === 'C_MEGA')   previewCases(x, y, 1);
@@ -176,17 +189,24 @@ function gererFinPartie(data) {
 }
 
 function traiterReponse(data, x, y) {
-    tirEnCours = false;
-    if (data.status !== 'success') return;
+    if (data.status !== 'success') {
+        tirEnCours = false;
+        document.getElementById('grid-tirs').classList.remove('ia-turn');
+        return;
+    }
+    
     afficherCarte(data.code_carte, data.carte);
     appliquerImpacts(data.impacts, 'tir');
+    
     if (data.tir_ia) {
         setTimeout(() => { appliquerImpacts(data.tir_ia.impacts, 'flotte'); }, 800);
     }
+    
     if (data.fin_partie) {
         gererFinPartie(data);
         return;
     }
+    
     setTimeout(() => {
         if (!data.extra?.rejoue) {
             afficherCarte('C_MISSILE', 'Missile standard');
@@ -196,6 +216,11 @@ function traiterReponse(data, x, y) {
             document.getElementById('status-msg').textContent = 'Bénéfice : REJOUEZ !';
             afficherCarte('C_MISSILE', 'Tir Supplémentaire');
         }
+        
+        // FIN DU TOUR : On redonne la main au joueur seulement une fois toutes les animations terminées !
+        tirEnCours = false;
+        document.getElementById('grid-tirs').classList.remove('ia-turn');
+        
     }, 2000);
 }
 
@@ -203,12 +228,21 @@ function tirer(x, y) {
     if (tirEnCours) return;
     const cell = document.getElementById(`tir-${x}-${y}`);
     if (cell.classList.contains('used')) return;
+    
     tirEnCours = true;
+    // DÉBUT DU TOUR : On ajoute la classe "ia-turn" pour bloquer visuellement la grille
+    document.getElementById('grid-tirs').classList.add('ia-turn');
     clearPreview();
+    
     let bodyData = `x=${x}&y=${y}&id_partie={{ REQUEST_VARS.get("id_partie", 1) }}`;
     if (enAttenteRejoue) { bodyData += '&rejoue=1'; enAttenteRejoue = false; }
+    
     fetch('/tirer', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: bodyData })
-    .then(r => r.json()).then(data => traiterReponse(data, x, y)).catch(e => { tirEnCours = false; });
+    .then(r => r.json()).then(data => traiterReponse(data, x, y))
+    .catch(e => { 
+        tirEnCours = false; 
+        document.getElementById('grid-tirs').classList.remove('ia-turn'); 
+    });
 }
 window.onload = () => { afficherCarte('C_MISSILE', 'Missile standard'); };
 </script>
