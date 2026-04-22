@@ -7,7 +7,6 @@ import math
 # =====================================================================
 # CONNEXION ET REQUÊTES DE BASE
 # =====================================================================
-
 def get_connection():
     try:
         with open("config-bd.toml", "rb") as f:
@@ -21,7 +20,6 @@ def get_connection():
             autocommit=True
         )
         with conn.cursor() as cur:
-            # ON CIBLE STRICTEMENT LE SCHÉMA PUBLIC
             cur.execute("SET search_path TO public;")
         return conn
     except Exception as e:
@@ -33,12 +31,9 @@ def execute_query(query, params=None, fetch="all", conn=None):
     if not conn:
         conn = get_connection()
         close_after = True
-        
     if not conn: return None
-    
     try:
         with conn.cursor() as cur:
-            # SECURITE : On force le schéma public à chaque requête
             cur.execute("SET search_path TO public;")
             cur.execute(query, params)
             res = None
@@ -46,7 +41,6 @@ def execute_query(query, params=None, fetch="all", conn=None):
                 res = cur.fetchone()
             elif fetch == "all":
                 res = cur.fetchall()
-                
         if close_after:
             conn.close()
         return res
@@ -59,138 +53,59 @@ def execute_query(query, params=None, fetch="all", conn=None):
 # =====================================================================
 # ÉTAPE 1 : STATISTIQUES ET ACCUEIL
 # =====================================================================
-
 def get_statistiques_accueil(conn=None):
     stats = {'nb_joueurs': 0, 'nb_parties': 0, 'top_joueurs': []}
-    
     res_j = execute_query("SELECT COUNT(*) FROM Joueur", fetch="one", conn=conn)
     if res_j: stats['nb_joueurs'] = res_j[0]
-
     res_p = execute_query("SELECT COUNT(*) FROM Partie", fetch="one", conn=conn)
     if res_p: stats['nb_parties'] = res_p[0]
-
     query_top = """
         SELECT j.pseudo, COUNT(p.id_partie) as victoires
         FROM Joueur j
         JOIN Partie p ON j.id_joueur = p.id_vainqueur
         GROUP BY j.pseudo 
-        ORDER BY victoires DESC 
-        LIMIT 3
+        ORDER BY victoires DESC LIMIT 3
     """
     res_top = execute_query(query_top, conn=conn)
     if res_top: stats['top_joueurs'] = res_top
-
     return stats
 
 def get_stats_joueur(id_joueur, conn=None):
-    stats = {
-        'parties_finies_3m': 0,
-        'stats_contre_ia': {'victoires': 0, 'defaites': 0},
-        'moyenne_tours': 0,
-        'points_2026': 0,
-        'cartes_tirees': []
-    }
-    
-    q1 = """
-        SELECT COUNT(*) FROM Partie p
-        JOIN Participer pa ON p.id_partie = pa.id_partie
-        WHERE pa.id_joueur = %s 
-          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
-          AND p.date_heure >= CURRENT_DATE - INTERVAL '3 months'
-    """
+    stats = {'parties_finies_3m': 0, 'stats_contre_ia': {'victoires': 0, 'defaites': 0}, 'moyenne_tours': 0, 'points_2026': 0, 'cartes_tirees': []}
+    q1 = "SELECT COUNT(*) FROM Partie p JOIN Participer pa ON p.id_partie = pa.id_partie WHERE pa.id_joueur = %s AND p.etat IN ('Gagnée', 'Perdue', 'Terminé') AND p.date_heure >= CURRENT_DATE - INTERVAL '3 months'"
     res1 = execute_query(q1, (id_joueur,), fetch="one", conn=conn)
     if res1: stats['parties_finies_3m'] = res1[0]
-    
-    # Remplacement des niveaux par les victoires/défaites contre l'IA
     q2 = """
-        SELECT 
-            COUNT(CASE WHEN p.id_vainqueur = %s THEN 1 END) as victoires,
-            COUNT(CASE WHEN p.id_vainqueur != %s AND p.id_vainqueur IS NOT NULL THEN 1 END) as defaites
-        FROM Partie p
-        JOIN Participer pa_joueur ON p.id_partie = pa_joueur.id_partie
-        JOIN Participer pa_adv ON p.id_partie = pa_adv.id_partie
-        JOIN Virtuel v ON pa_adv.id_joueur = v.id_joueur
-        WHERE pa_joueur.id_joueur = %s 
-          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
+        SELECT COUNT(CASE WHEN p.id_vainqueur = %s THEN 1 END) as victoires, COUNT(CASE WHEN p.id_vainqueur != %s AND p.id_vainqueur IS NOT NULL THEN 1 END) as defaites
+        FROM Partie p JOIN Participer pa_joueur ON p.id_partie = pa_joueur.id_partie JOIN Participer pa_adv ON p.id_partie = pa_adv.id_partie JOIN Virtuel v ON pa_adv.id_joueur = v.id_joueur
+        WHERE pa_joueur.id_joueur = %s AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
     """
     res2 = execute_query(q2, (id_joueur, id_joueur, id_joueur), fetch="one", conn=conn)
-    if res2: 
-        stats['stats_contre_ia'] = {'victoires': res2[0] or 0, 'defaites': res2[1] or 0}
-
-    q3 = """
-        SELECT COALESCE(ROUND(AVG(nb_tours), 1), 0)
-        FROM (
-            SELECT id_partie, COUNT(*) as nb_tours
-            FROM Tour
-            WHERE id_joueur = %s
-            GROUP BY id_partie
-        ) sub
-    """
+    if res2: stats['stats_contre_ia'] = {'victoires': res2[0] or 0, 'defaites': res2[1] or 0}
+    q3 = "SELECT COALESCE(ROUND(AVG(nb_tours), 1), 0) FROM (SELECT id_partie, COUNT(*) as nb_tours FROM Tour WHERE id_joueur = %s GROUP BY id_partie) sub"
     res3 = execute_query(q3, (id_joueur,), fetch="one", conn=conn)
     if res3: stats['moyenne_tours'] = float(res3[0])
-
-    q4 = """
-        SELECT COALESCE(SUM(
-            CASE
-                WHEN p.id_vainqueur = %s THEN p.score_vainqueur
-                ELSE p.score_perdant
-            END
-        ), 0)
-        FROM Partie p
-        JOIN Participer pa ON p.id_partie = pa.id_partie
-        WHERE pa.id_joueur = %s 
-          AND EXTRACT(YEAR FROM p.date_heure) = 2026
-          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
-    """
+    q4 = "SELECT COALESCE(SUM(CASE WHEN p.id_vainqueur = %s THEN p.score_vainqueur ELSE p.score_perdant END), 0) FROM Partie p JOIN Participer pa ON p.id_partie = pa.id_partie WHERE pa.id_joueur = %s AND EXTRACT(YEAR FROM p.date_heure) = 2026 AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')"
     res4 = execute_query(q4, (id_joueur, id_joueur), fetch="one", conn=conn)
     if res4: stats['points_2026'] = int(res4[0])
-
-    q5 = """
-        SELECT tc.nom, COUNT(c.id_carte) as nb_tirees
-        FROM Carte c
-        JOIN Type_Carte tc ON c.code_type_carte = tc.code
-        WHERE c.id_joueur_piocheur = %s
-        GROUP BY tc.nom
-        ORDER BY nb_tirees DESC
-    """
+    q5 = "SELECT tc.nom, COUNT(c.id_carte) as nb_tirees FROM Carte c JOIN Type_Carte tc ON c.code_type_carte = tc.code WHERE c.id_joueur_piocheur = %s GROUP BY tc.nom ORDER BY nb_tirees DESC"
     res5 = execute_query(q5, (id_joueur,), conn=conn)
     if res5: stats['cartes_tirees'] = res5
-
     return stats
 
 def get_classements(type_classement, duree_mois=0, conn=None):
     if type_classement == 'IJH':
-        query = """
-            SELECT c.rang, j.pseudo, c.score_total
-            FROM Classement c
-            JOIN Joueur j ON c.id_joueur = j.id_joueur
-            WHERE c.type = 'IJH' AND c.duree_mois = %s
-            ORDER BY c.rang ASC
-        """
+        query = "SELECT c.rang, j.pseudo, c.score_total FROM Classement c JOIN Joueur j ON c.id_joueur = j.id_joueur WHERE c.type = 'IJH' AND c.duree_mois = %s ORDER BY c.rang ASC"
     elif type_classement == 'CPP':
-        query = """
-            SELECT c.rang, p.nom_pays, c.score_total
-            FROM Classement c
-            JOIN Pavillon p ON c.code_pays = p.code_pays
-            WHERE c.type = 'CPP' AND c.duree_mois = %s
-            ORDER BY c.rang ASC
-        """
+        query = "SELECT c.rang, p.nom_pays, c.score_total FROM Classement c JOIN Pavillon p ON c.code_pays = p.code_pays WHERE c.type = 'CPP' AND c.duree_mois = %s ORDER BY c.rang ASC"
     else: return []
-    res = execute_query(query, (int(duree_mois),), conn=conn)
-    return res if res else []
+    return execute_query(query, (int(duree_mois),), conn=conn) or []
 
 # =====================================================================
 # ÉTAPE 2 : CRÉATION ET LISTE DES PARTIES
 # =====================================================================
-
 def get_adversaires_virtuels(conn=None):
-    query = """
-        SELECT j.id_joueur, j.pseudo, v.niveau 
-        FROM Virtuel v 
-        JOIN Joueur j ON v.id_joueur = j.id_joueur
-        ORDER BY 
-            CASE v.niveau WHEN 'Faible' THEN 1 WHEN 'Intermédiaire' THEN 2 WHEN 'Expert' THEN 3 END;
-    """
+    query = "SELECT j.id_joueur, j.pseudo, v.niveau FROM Virtuel v JOIN Joueur j ON v.id_joueur = j.id_joueur ORDER BY CASE v.niveau WHEN 'Faible' THEN 1 WHEN 'Intermédiaire' THEN 2 WHEN 'Expert' THEN 3 END;"
     return execute_query(query, conn=conn)
 
 def get_distributions(conn=None):
@@ -198,16 +113,8 @@ def get_distributions(conn=None):
     return [row[0] for row in res] if res else []
 
 def get_mes_parties(id_joueur):
-    query = """
-        SELECT p.id_partie, p.etat, p.date_heure 
-        FROM Partie p
-        JOIN Participer pa ON p.id_partie = pa.id_partie
-        WHERE pa.id_joueur = %s 
-          AND p.etat IN ('Créée', 'En cours')
-        ORDER BY p.date_heure DESC
-    """
-    res = execute_query(query, (id_joueur,))
-    return res if res else []
+    query = "SELECT p.id_partie, p.etat, p.date_heure FROM Partie p JOIN Participer pa ON p.id_partie = pa.id_partie WHERE pa.id_joueur = %s AND p.etat IN ('Créée', 'En cours') ORDER BY p.date_heure DESC"
+    return execute_query(query, (id_joueur,)) or []
 
 def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None):
     close_after = False
@@ -215,7 +122,6 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
         conn = get_connection()
         close_after = True
     if not conn: return None
-
     original_autocommit = conn.autocommit
     conn.autocommit = False
 
@@ -228,9 +134,15 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
             cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_joueur))
             cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_adversaire))
 
+            # CRÉATION DES GRILLES DE JEU POUR GARANTIR L'INTÉGRITÉ DES PIÈGES LORS DES TIRS
+            for j_id in [id_joueur, id_adversaire]:
+                for _ in range(2):
+                    cur.execute("INSERT INTO Grille (nb_lignes, nb_colonnes) VALUES (10, 10) RETURNING id_grille")
+                    id_g = cur.fetchone()[0]
+                    cur.execute("INSERT INTO Grille_Partie (id_partie, id_joueur, id_grille) VALUES (%s, %s, %s)", (id_partie, j_id, id_g))
+
             cur.execute("INSERT INTO Pioche (nom_distribution, id_partie) VALUES (%s, %s) RETURNING id_pioche", (nom_distribution, id_partie))
             id_pioche = cur.fetchone()[0]
-
             cur.execute("UPDATE Partie SET id_pioche = %s WHERE id_partie = %s", (id_pioche, id_partie))
 
             cur.execute("SELECT pourcentage_missile, pourcentage_rejoue, pourcentage_vide, pourcentage_mpm, pourcentage_leurre, pourcentage_willy, pourcentage_mega, pourcentage_etoile, pourcentage_passe, pourcentage_oups FROM Distribution WHERE nom = %s", (nom_distribution,))
@@ -243,7 +155,6 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
 
             random.shuffle(deck)
             cartes_data = [(code, id_pioche, rang) for rang, code in enumerate(deck, start=1)]
-            
             cur.executemany("INSERT INTO Carte (code_type_carte, id_pioche, rang_apparition) VALUES (%s, %s, %s)", cartes_data)
             conn.commit()
             return id_partie
@@ -258,83 +169,54 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
 # =====================================================================
 # ÉTAPE 3 : FLOTTILLE ET GRILLES
 # =====================================================================
-
 def initialiser_flottille(id_partie, id_joueur, conn=None):
-    close_after = False
-    if not conn:
-        conn = get_connection()
-        close_after = True
-    if not conn: return False
-
-    original_autocommit = conn.autocommit
-    conn.autocommit = False
-
     try:
-        with conn.cursor() as cur:
-            cur.execute("SET search_path TO public;")
-            cur.execute("INSERT INTO Flottille (type) VALUES ('Nationale') RETURNING id_flottille")
-            id_flottille = cur.fetchone()[0]
+        id_flottille = execute_query("INSERT INTO Flottille (type) VALUES ('Nationale') RETURNING id_flottille", fetch="one", conn=conn)[0]
+        execute_query("INSERT INTO Utiliser_Flottille (id_partie, id_joueur, id_flottille) VALUES (%s, %s, %s)", (id_partie, id_joueur, id_flottille), fetch=None, conn=conn)
 
-            cur.execute("INSERT INTO Utiliser_Flottille (id_partie, id_joueur, id_flottille) VALUES (%s, %s, %s)", (id_partie, id_joueur, id_flottille))
+        tailles_requises = [5, 4, 3, 3, 2]
+        navires_a_placer = []
+        tous_navires = execute_query("SELECT id_navire, taille FROM Navire", conn=conn)
+        
+        if not tous_navires or len(tous_navires) < 5:
+            # Fallback (non supposé arriver grace au peuplement mais par sureté)
+            return False
 
-            tailles_requises = [5, 4, 3, 3, 2]
-            navires_a_placer = []
-            cur.execute("SELECT id_navire, taille FROM Navire")
-            tous_navires = cur.fetchall()
-            
-            if len(tous_navires) < 5:
-                noms_secours = ["Le Terrible", "L'Audacieux", "Le Triomphant", "Le Redoutable", "L'Agile"]
-                types_secours = ["Porte-avion", "Croiseur", "Contre-torpilleur", "Contre-torpilleur", "Torpilleur"]
-                for i, t in enumerate(tailles_requises):
-                    cur.execute("INSERT INTO Navire (nom, type, taille) VALUES (%s, %s, %s) RETURNING id_navire", (noms_secours[i], types_secours[i], t))
-                    navires_a_placer.append({'id_navire': cur.fetchone()[0], 'taille': t})
-            else:
-                navs_dispos = list(tous_navires)
-                for t in tailles_requises:
-                    for nav in navs_dispos:
-                        if nav[1] == t:
-                            navires_a_placer.append({'id_navire': nav[0], 'taille': nav[1]})
-                            navs_dispos.remove(nav) 
-                            break
+        navs_dispos = list(tous_navires)
+        for t in tailles_requises:
+            for nav in navs_dispos:
+                if nav[1] == t:
+                    navires_a_placer.append({'id_navire': nav[0], 'taille': nav[1]})
+                    navs_dispos.remove(nav) 
+                    break
 
-            cases_occupees = set()
-            placements_finaux = []
-
-            for navire in navires_a_placer:
-                taille = navire['taille']
-                place = False
-                while not place:
-                    sens = random.choice(['H', 'V'])
-                    if sens == 'H':
-                        x, y = random.randint(1, 11 - taille), random.randint(1, 10)
-                        cases_testees = [(x + i, y) for i in range(taille)]
-                    else:
-                        x, y = random.randint(1, 10), random.randint(1, 11 - taille)
-                        cases_testees = [(x, y + i) for i in range(taille)]
-                    
-                    if all(case not in cases_occupees for case in cases_testees):
-                        cases_occupees.update(cases_testees)
-                        placements_finaux.append((id_flottille, navire['id_navire'], x, y, sens, 'Opérationnel'))
-                        place = True
-
-            cur.executemany("INSERT INTO Composition_Flottille (id_flottille, id_navire, x, y, sens, etat) VALUES (%s, %s, %s, %s, %s, %s)", placements_finaux)
-            conn.commit()
-            return True
+        cases_occupees = set()
+        for navire in navires_a_placer:
+            taille = navire['taille']
+            place = False
+            while not place:
+                sens = random.choice(['H', 'V'])
+                if sens == 'H':
+                    x, y = random.randint(1, 11 - taille), random.randint(1, 10)
+                    cases_testees = [(x + i, y) for i in range(taille)]
+                else:
+                    x, y = random.randint(1, 10), random.randint(1, 11 - taille)
+                    cases_testees = [(x, y + i) for i in range(taille)]
+                
+                if all(case not in cases_occupees for case in cases_testees):
+                    cases_occupees.update(cases_testees)
+                    execute_query("INSERT INTO Composition_Flottille (id_flottille, id_navire, x, y, sens, etat) VALUES (%s, %s, %s, %s, %s, %s)", (id_flottille, navire['id_navire'], x, y, sens, 'Opérationnel'), fetch=None, conn=conn)
+                    place = True
+        return True
     except Exception as e:
-        conn.rollback()
-        logger.error(f"Erreur initialisation flottille : {e}")
+        logger.error(f"Erreur init flottille : {e}")
         return False
-    finally:
-        conn.autocommit = original_autocommit
-        if close_after: conn.close()
 
 def get_cases_flottille(id_partie, id_joueur, conn=None):
     cases_occupees = []
     query = """
         SELECT cf.x, cf.y, cf.sens, n.taille
-        FROM Composition_Flottille cf
-        JOIN Navire n ON cf.id_navire = n.id_navire
-        JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
+        FROM Composition_Flottille cf JOIN Navire n ON cf.id_navire = n.id_navire JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
         WHERE uf.id_partie = %s AND uf.id_joueur = %s
     """
     res = execute_query(query, (id_partie, id_joueur), conn=conn)
@@ -348,171 +230,158 @@ def get_cases_flottille(id_partie, id_joueur, conn=None):
 # =====================================================================
 # ÉTAPE 4 : LOGIQUE DE JEU, TIRS ET IA
 # =====================================================================
-
 def creer_tour(id_partie, id_joueur, conn=None):
-    query_ordre = "SELECT COALESCE(MAX(numero_ordre), 0) + 1 FROM Tour WHERE id_partie = %s AND id_joueur = %s"
-    res = execute_query(query_ordre, (id_partie, id_joueur), fetch="one", conn=conn)
+    res = execute_query("SELECT COALESCE(MAX(numero_ordre), 0) + 1 FROM Tour WHERE id_partie = %s AND id_joueur = %s", (id_partie, id_joueur), fetch="one", conn=conn)
     numero_ordre = res[0] if res else 1
-    
-    query_insert = "INSERT INTO Tour (id_partie, id_joueur, numero_ordre) VALUES (%s, %s, %s) RETURNING id_tour"
-    res_insert = execute_query(query_insert, (id_partie, id_joueur, numero_ordre), fetch="one", conn=conn)
+    res_insert = execute_query("INSERT INTO Tour (id_partie, id_joueur, numero_ordre) VALUES (%s, %s, %s) RETURNING id_tour", (id_partie, id_joueur, numero_ordre), fetch="one", conn=conn)
     return res_insert[0] if res_insert else None
 
 def enregistrer_tir_db(id_tour, x, y, resultat, conn=None):
-    query = "INSERT INTO Tir (id_tour, x, y, resultat) VALUES (%s, %s, %s, %s)"
-    execute_query(query, (id_tour, x, y, resultat), fetch=None, conn=conn)
-    return True
+    execute_query("INSERT INTO Tir (id_tour, x, y, resultat) VALUES (%s, %s, %s, %s)", (id_tour, x, y, resultat), fetch=None, conn=conn)
 
 def piocher_carte_partie(id_partie, id_joueur, id_tour, conn=None):
-    query = """
-        SELECT c.id_carte, tc.nom 
-        FROM Carte c
-        JOIN Pioche p ON c.id_pioche = p.id_pioche
-        JOIN Type_Carte tc ON c.code_type_carte = tc.code
-        WHERE p.id_partie = %s AND c.etat = 'Dans la pioche'
-        ORDER BY c.rang_apparition ASC
-        LIMIT 1
-    """
+    query = "SELECT c.id_carte, tc.code, tc.nom FROM Carte c JOIN Pioche p ON c.id_pioche = p.id_pioche JOIN Type_Carte tc ON c.code_type_carte = tc.code WHERE p.id_partie = %s AND c.etat = 'Dans la pioche' ORDER BY c.rang_apparition ASC LIMIT 1"
     res = execute_query(query, (id_partie,), fetch="one", conn=conn)
     if res:
-        id_carte, nom_carte = res
+        id_carte, code_carte, nom_carte = res
         execute_query("UPDATE Carte SET etat = 'Piochée', id_joueur_piocheur = %s, date_pioche = CURRENT_TIMESTAMP WHERE id_carte = %s", (id_joueur, id_carte), fetch=None, conn=conn)
         execute_query("UPDATE Tour SET id_carte_piochee = %s WHERE id_tour = %s", (id_carte, id_tour), fetch=None, conn=conn)
-        return nom_carte
-    return None
+        restantes = execute_query("SELECT COUNT(*) FROM Carte c JOIN Pioche p ON c.id_pioche = p.id_pioche WHERE p.id_partie = %s AND c.etat = 'Dans la pioche'", (id_partie,), fetch="one", conn=conn)
+        if restantes and restantes[0] == 0:
+            ids = [row[0] for row in execute_query("SELECT c.id_carte FROM Carte c JOIN Pioche p ON c.id_pioche = p.id_pioche WHERE p.id_partie = %s", (id_partie,), conn=conn) or []]
+            random.shuffle(ids)
+            for rang, i_c in enumerate(ids, start=1):
+                execute_query("UPDATE Carte SET etat = 'Dans la pioche', rang_apparition = %s WHERE id_carte = %s", (rang, i_c), fetch=None, conn=conn)
+        return code_carte, nom_carte
+    return 'C_MISSILE', 'Tir Classique (Secours)'
 
 def verifier_impact(id_partie, id_joueur_cible, x, y, conn=None):
     query = """
-        SELECT n.id_navire, n.nom
-        FROM Composition_Flottille cf
-        JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
-        JOIN Navire n ON cf.id_navire = n.id_navire
+        SELECT n.id_navire, n.nom FROM Composition_Flottille cf JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille JOIN Navire n ON cf.id_navire = n.id_navire
         WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.etat != 'Coulé'
-          AND ((cf.sens = 'H' AND cf.x <= %s AND %s < cf.x + n.taille AND cf.y = %s)
-            OR (cf.sens = 'V' AND cf.x = %s AND cf.y <= %s AND %s < cf.y + n.taille))
-        LIMIT 1
+          AND ((cf.sens = 'H' AND cf.x <= %s AND %s < cf.x + n.taille AND cf.y = %s) OR (cf.sens = 'V' AND cf.x = %s AND cf.y <= %s AND %s < cf.y + n.taille)) LIMIT 1
     """
     res = execute_query(query, (id_partie, id_joueur_cible, x, x, y, x, y, y), fetch="one", conn=conn)
     return (res[0], res[1]) if res else (None, None)
 
 def est_navire_coule(id_partie, id_joueur_cible, id_navire, conn=None):
-    query_nav = """
-        SELECT n.taille, cf.x, cf.y, cf.sens
-        FROM Composition_Flottille cf
-        JOIN Navire n ON cf.id_navire = n.id_navire
-        JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
-        WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.id_navire = %s
-    """
-    nav_info = execute_query(query_nav, (id_partie, id_joueur_cible, id_navire), fetch="one", conn=conn)
+    nav_info = execute_query("SELECT n.taille, cf.x, cf.y, cf.sens FROM Composition_Flottille cf JOIN Navire n ON cf.id_navire = n.id_navire JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.id_navire = %s", (id_partie, id_joueur_cible, id_navire), fetch="one", conn=conn)
     if not nav_info: return False
-
     taille, x0, y0, sens = nav_info
     cases = [(x0 + i, y0) if sens == 'H' else (x0, y0 + i) for i in range(taille)]
-
-    query_adv = "SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s"
-    adv = execute_query(query_adv, (id_partie, id_joueur_cible), fetch="one", conn=conn)
+    
+    adv = execute_query("SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s", (id_partie, id_joueur_cible), fetch="one", conn=conn)
     if not adv: return False
     id_adversaire = adv[0]
 
     touches = 0
     for (cx, cy) in cases:
-        query_tir = "SELECT 1 FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s AND tour.id_joueur = %s AND t.x = %s AND t.y = %s AND t.resultat IN ('Touché', 'Coulé') LIMIT 1"
-        hit = execute_query(query_tir, (id_partie, id_adversaire, cx, cy), fetch="one", conn=conn)
-        if hit: touches += 1
-
+        if execute_query("SELECT 1 FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s AND tour.id_joueur = %s AND t.x = %s AND t.y = %s AND t.resultat IN ('Touché', 'Coulé') LIMIT 1", (id_partie, id_adversaire, cx, cy), fetch="one", conn=conn):
+            touches += 1
     return touches == taille
 
+def couler_navire(id_partie, id_joueur_cible, id_navire, conn=None):
+    execute_query("UPDATE Composition_Flottille SET etat = 'Coulé' WHERE id_navire = %s AND id_flottille IN (SELECT id_flottille FROM Utiliser_Flottille WHERE id_partie = %s AND id_joueur = %s)", (id_navire, id_partie, id_joueur_cible), fetch=None, conn=conn)
+
+def est_flotte_detruite(id_partie, id_joueur_verif, conn=None):
+    res = execute_query("SELECT COUNT(*) FROM Composition_Flottille cf JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.etat != 'Coulé'", (id_partie, id_joueur_verif), fetch="one", conn=conn)
+    return res and res[0] == 0
+
+# =====================================================================
+# ÉTAPE 5 : GESTION DES CARTES PIÈGES ET SOINS
+# =====================================================================
+def placer_piege(id_partie, id_joueur, type_piege, conn=None):
+    res = execute_query("SELECT id_grille FROM Grille_Partie WHERE id_partie=%s AND id_joueur=%s LIMIT 1", (id_partie, id_joueur), fetch="one", conn=conn)
+    if res:
+        id_g = res[0]
+        x, y = random.randint(1, 8), random.randint(1, 10) # 8 pour éviter le débord du leurre
+        sens = random.choice(['H', 'V']) if type_piege == 'Leurre' else 'H'
+        execute_query("INSERT INTO Contenu_Grille (id_grille, type, x, y, taille, etat) VALUES (%s, %s, %s, %s, %s, 'Actif')", (id_g, type_piege, x, y, 3 if type_piege=='Leurre' else 1), fetch=None, conn=conn)
+        return {"x": x, "y": y, "sens": sens, "taille": 3 if type_piege=='Leurre' else 1}
+    return None
+
+def verifier_piege(id_partie, id_cible, x, y, conn=None):
+    res = execute_query("SELECT id_grille FROM Grille_Partie WHERE id_partie=%s AND id_joueur=%s LIMIT 1", (id_partie, id_cible), fetch="one", conn=conn)
+    if res:
+        id_g = res[0]
+        query = """
+            SELECT id_contenu, type FROM Contenu_Grille 
+            WHERE id_grille = %s AND etat = 'Actif'
+            AND (
+                (type = 'Orque' AND x = %s AND y = %s)
+                OR
+                (type = 'Leurre' AND %s >= x AND %s < x + taille AND y = %s)
+            ) LIMIT 1
+        """
+        piege = execute_query(query, (id_g, x, y, x, x, y), fetch="one", conn=conn)
+        if piege: return piege[0], piege[1]
+    return None, None
+
+def detruire_plus_petits_navires(id_partie, id_victime, nb, conn=None):
+    query = """
+        SELECT cf.id_navire FROM Composition_Flottille cf
+        JOIN Navire n ON cf.id_navire = n.id_navire JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille
+        WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.etat != 'Coulé'
+        ORDER BY n.taille ASC LIMIT %s
+    """
+    res = execute_query(query, (id_partie, id_victime, nb), conn=conn)
+    for row in (res or []):
+        couler_navire(id_partie, id_victime, row[0], conn=conn)
+
+def appliquer_mpm(id_partie, id_joueur, id_adversaire, conn=None):
+    query = """
+        SELECT t.id_tir, t.x, t.y FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour
+        WHERE tour.id_partie = %s AND tour.id_joueur = %s AND t.resultat = 'Touché'
+        ORDER BY t.id_tir DESC LIMIT 1
+    """
+    res = execute_query(query, (id_partie, id_adversaire), fetch="one", conn=conn)
+    if res:
+        id_tir, tx, ty = res
+        execute_query("DELETE FROM Tir WHERE id_tir = %s", (id_tir,), fetch=None, conn=conn)
+        
+        id_navire, _ = verifier_impact(id_partie, id_joueur, tx, ty, conn=conn)
+        if id_navire:
+            f_res = execute_query("SELECT id_flottille FROM Utiliser_Flottille WHERE id_partie=%s AND id_joueur=%s", (id_partie, id_joueur), fetch="one", conn=conn)
+            if f_res:
+                execute_query("UPDATE Composition_Flottille SET x=%s, y=%s, etat='Opérationnel' WHERE id_navire=%s AND id_flottille=%s", (random.randint(1,6), random.randint(1,10), id_navire, f_res[0]), fetch=None, conn=conn)
+        return {"annule_tir": {"x": tx, "y": ty}}
+    return None
+
+# =====================================================================
+# ÉTAPE 6 : INTELLIGENCE ARTIFICIELLE
+# =====================================================================
 def ia_jouer_tour(id_partie, conn=None):
-    """
-    IA multi-niveaux :
-    - Faible : Aléatoire pur
-    - Intermédiaire : Damier + Recherche locale
-    - Expert : Damier + Recherche locale + 30% chance de triche intelligente
-    """
-    # 1. Identifier l'IA, le joueur humain et le niveau de l'IA
-    query_players = """
-        SELECT p.id_joueur, v.niveau
-        FROM Participer p
-        LEFT JOIN Virtuel v ON p.id_joueur = v.id_joueur
-        WHERE p.id_partie = %s
-    """
-    players = execute_query(query_players, (id_partie,), conn=conn)
+    players = execute_query("SELECT p.id_joueur, v.niveau FROM Participer p LEFT JOIN Virtuel v ON p.id_joueur = v.id_joueur WHERE p.id_partie = %s", (id_partie,), conn=conn)
     id_joueur_ia = id_humain = niveau_ia = None
-    
     if players:
         for pid, niveau in players:
             if niveau is not None: 
-                id_joueur_ia = pid
-                niveau_ia = niveau
+                id_joueur_ia, niveau_ia = pid, niveau
             else: 
                 id_humain = pid
                 
     if not id_joueur_ia or not id_humain: return None
 
-    # 2. Historique des tirs de l'IA
-    query_tirs = """
-        SELECT t.x, t.y, t.resultat
-        FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour
-        WHERE tour.id_partie = %s AND tour.id_joueur = %s
-    """
-    tirs_ia = execute_query(query_tirs, (id_partie, id_joueur_ia), conn=conn) or []
+    tirs_ia = execute_query("SELECT t.x, t.y, t.resultat FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s AND tour.id_joueur = %s", (id_partie, id_joueur_ia), conn=conn) or []
     cases_tirees = set((row[0], row[1]) for row in tirs_ia)
-
-    toutes_cases = [(x, y) for x in range(1, 11) for y in range(1, 11)]
-    cases_disponibles = [c for c in toutes_cases if c not in cases_tirees]
+    cases_disponibles = [c for c in [(x, y) for x in range(1, 11) for y in range(1, 11)] if c not in cases_tirees]
     
     if not cases_disponibles: return None
+    if niveau_ia == 'Faible': return random.choice(cases_disponibles)
 
-    # --- NIVEAU FAIBLE : Tir purement aléatoire ---
-    if niveau_ia == 'Faible':
-        return random.choice(cases_disponibles)
-
-    # --- PHASE CHASSE COMMUNE (INTERMÉDIAIRE & EXPERT) ---
     cibles_potentielles = []
-    touches = [(row[0], row[1]) for row in tirs_ia if row[2] == 'Touché']
-        
-    for tx, ty in touches:
+    for tx, ty in [(row[0], row[1]) for row in tirs_ia if row[2] == 'Touché']:
         id_navire, _ = verifier_impact(id_partie, id_humain, tx, ty, conn=conn)
         if id_navire and not est_navire_coule(id_partie, id_humain, id_navire, conn=conn):
-            adjacents = [(tx+1, ty), (tx-1, ty), (tx, ty+1), (tx, ty-1)]
-            for ax, ay in adjacents:
+            for ax, ay in [(tx+1, ty), (tx-1, ty), (tx, ty+1), (tx, ty-1)]:
                 if 1 <= ax <= 10 and 1 <= ay <= 10 and (ax, ay) not in cases_tirees:
                     cibles_potentielles.append((ax, ay))
 
-    # --- NIVEAU EXPERT : "Intuition" ciblée ---
-    # Si l'expert ne "chasse" pas activement, il a 30% de deviner où est un bateau !
-    if niveau_ia == 'Expert' and not cibles_potentielles:
-        if random.random() < 0.30:
-            cases_flotte = get_cases_flottille(id_partie, id_humain, conn=conn)
-            cibles_expertes = []
-            for c in cases_flotte:
-                parts = c.split('-')
-                cibles_expertes.append((int(parts[0]), int(parts[1])))
-            
-            cibles_valides = [c for c in cibles_expertes if c not in cases_tirees]
-            if cibles_valides:
-                return random.choice(cibles_valides)
+    if niveau_ia == 'Expert' and not cibles_potentielles and random.random() < 0.30:
+        cibles_expertes = [(int(p.split('-')[0]), int(p.split('-')[1])) for p in get_cases_flottille(id_partie, id_humain, conn=conn)]
+        cibles_valides = [c for c in cibles_expertes if c not in cases_tirees]
+        if cibles_valides: return random.choice(cibles_valides)
 
-    # Si l'IA (Intermédiaire ou Expert) est en chasse, on valide la cible locale
-    if cibles_potentielles:
-        return random.choice(cibles_potentielles)
-
-    # --- PHASE RECHERCHE COMMUNE (INTERMÉDIAIRE & EXPERT) ---
-    # Damier : on tire en diagonale (x+y pair)
+    if cibles_potentielles: return random.choice(cibles_potentielles)
     cases_noires = [(x, y) for (x, y) in cases_disponibles if (x + y) % 2 == 0]
-    
-    if cases_noires: 
-        return random.choice(cases_noires)
-        
-    return random.choice(cases_disponibles)
-
-def calculer_score(nb_tirs_total):
-    if nb_tirs_total == 0: return 0
-    return math.floor(100 * (17 / nb_tirs_total))
-
-def terminer_partie(id_partie, id_vainqueur, nb_tirs_vainqueur, nb_tirs_perdant, conn=None):
-    score_v = calculer_score(nb_tirs_vainqueur)
-    score_p = calculer_score(nb_tirs_perdant)
-    query = "UPDATE Partie SET etat = 'Terminé', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s"
-    execute_query(query, (id_vainqueur, score_v, score_p, id_partie), fetch=None, conn=conn)
-    return True
+    return random.choice(cases_noires) if cases_noires else random.choice(cases_disponibles)
