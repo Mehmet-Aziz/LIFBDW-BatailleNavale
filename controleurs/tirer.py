@@ -3,8 +3,8 @@ import random
 import model.model_pg as db
 
 def calculer_nouveau_score(id_partie, id_joueur_score, conn):
-    """Calcul précis du score : 100 * (17 / Total)"""
-    import model.model_pg as db # Sécurisation du scope due au exec() de server.py
+    """Calcul précis du score : 100 * (Touches / Total)"""
+    import model.model_pg as db 
     query = """
         SELECT COUNT(*) as total, 
                SUM(CASE WHEN t.resultat IN ('Touché', 'Coulé') THEN 1 ELSE 0 END) as touches 
@@ -21,7 +21,7 @@ def calculer_nouveau_score(id_partie, id_joueur_score, conn):
 def appliquer_oups(id_partie, id_tireur, id_tour, conn):
     """Effet de Mauvaise Manip (C_OUPS) : Touche un de ses propres navires au hasard."""
     import random
-    import model.model_pg as db # Sécurisation du scope
+    import model.model_pg as db 
     query = """
         SELECT cf.x, cf.y 
         FROM Composition_Flottille cf
@@ -44,14 +44,14 @@ def appliquer_oups(id_partie, id_tireur, id_tour, conn):
 
 def appliquer_tirs_carte(code_carte, x_centre, y_centre, id_partie, id_tireur, id_cible, id_tour, conn):
     """Génère les multiples impacts en fonction de la carte (Méga-bombe, Etoile...)"""
-    import model.model_pg as db # Sécurisation du scope
+    import model.model_pg as db 
     cases_a_viser = []
     
-    if code_carte == 'C_MEGA': # 9 cases
+    if code_carte == 'C_MEGA': 
         cases_a_viser = [(x_centre + dx, y_centre + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1]]
-    elif code_carte == 'C_ETOILE': # 25 cases
+    elif code_carte == 'C_ETOILE': 
         cases_a_viser = [(x_centre + dx, y_centre + dy) for dx in [-2, -1, 0, 1, 2] for dy in [-2, -1, 0, 1, 2]]
-    else: # 1 case classique
+    else: 
         cases_a_viser = [(x_centre, y_centre)]
         
     impacts = []
@@ -89,18 +89,8 @@ est_rejoue = POST.get('rejoue', [None])[0]
 id_joueur = SESSION.get('id_joueur')
 conn = SESSION.get('CONNEXION')
 
-# Vérification rigoureuse des paramètres POST pour éviter "Données manquantes"
-if not id_partie:
-    err = "Paramètre 'id_partie' manquant dans la requête. Le front-end a échoué."
-elif not x_val or not y_val:
-    err = "Coordonnées de tir (x, y) manquantes."
-elif not id_joueur:
-    err = "Session expirée. Veuillez vous reconnecter."
-else:
-    err = None
-
-if err:
-    REQUEST_VARS['json_data'] = json.dumps({"status": "error", "message": err})
+if not id_partie or not x_val or not y_val or not id_joueur:
+    REQUEST_VARS['json_data'] = json.dumps({"status": "error", "message": "Données manquantes"})
 else:
     x, y = int(x_val), int(y_val)
     id_partie = int(id_partie)
@@ -121,28 +111,15 @@ else:
         nom_carte_humain = "Tir Classique"
         resultat_humain = "Eau"
 
-        # ==========================================
-        # TOUR DU JOUEUR HUMAIN
-        # ==========================================
+        # TOUR HUMAIN
+        id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
+        
         if est_rejoue:
             nom_carte_humain = "Tir Supplémentaire (Bonus)"
-            id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
             impacts_humain = appliquer_tirs_carte('C_MISSILE', x, y, id_partie, id_joueur, id_adversaire, id_tour_humain, conn)
-            
-            # Contournement de l'erreur de scope liée à exec() en Python
-            res_centre = None
-            for imp in impacts_humain:
-                if imp['x'] == x and imp['y'] == y:
-                    res_centre = imp
-                    break
-            
-            if res_centre: 
-                resultat_humain = res_centre['resultat']
         else:
-            id_tour_humain = db.creer_tour(id_partie, id_joueur, conn=conn)
             code_carte_humain, nom_carte_humain = db.piocher_carte_partie(id_partie, id_joueur, id_tour_humain, conn=conn)
             
-            # Application des cartes
             if code_carte_humain == 'C_PASSE':
                 resultat_humain = "Passe"
             elif code_carte_humain == 'C_OUPS':
@@ -166,31 +143,23 @@ else:
 
                 impacts_humain = appliquer_tirs_carte(code_carte_humain, x, y, id_partie, id_joueur, id_adversaire, id_tour_humain, conn)
                 
-                # Contournement de l'erreur de scope liée à exec() en Python
-                res_centre = None
-                for imp in impacts_humain:
-                    if imp['x'] == x and imp['y'] == y:
-                        res_centre = imp
-                        break
-
-                if res_centre: 
-                    resultat_humain = res_centre['resultat']
-                
                 if code_carte_humain == 'C_REJOUE':
                     extra_humain['rejoue'] = True
-                    ia_doit_jouer = False # Le tour s'arrête là, le front-end va refaire un appel AJAX
+                    ia_doit_jouer = False 
+
+        # Calcul du résultat pour la case cliquée (évite next() pour NameError)
+        for imp in impacts_humain:
+            if imp['x'] == x and imp['y'] == y:
+                resultat_humain = imp['resultat']
+                break
 
         fin_partie = db.est_flotte_detruite(id_partie, id_adversaire, conn)
         vainqueur = "humain" if fin_partie else None
 
-        # ==========================================
-        # TOUR DE L'IA
-        # ==========================================
+        # TOUR IA
         tir_ia_data = {"impacts": []}
         if not fin_partie and ia_doit_jouer:
-            # Si le joueur a passé son tour, l'IA joue 2 fois
             tours_ia_restants = 2 if code_carte_humain == 'C_PASSE' else 1
-            
             while tours_ia_restants > 0 and not fin_partie:
                 tours_ia_restants -= 1
                 id_tour_ia = db.creer_tour(id_partie, id_adversaire, conn=conn)
@@ -221,12 +190,11 @@ else:
                         tir_ia_data["impacts"].extend(impacts_ia)
                         if code_carte_ia == 'C_REJOUE':
                             tours_ia_restants += 1
-
                 fin_partie = db.est_flotte_detruite(id_partie, id_joueur, conn)
-                if fin_partie:
-                    vainqueur = "ia"
+                if fin_partie: vainqueur = "ia"
 
-        # Fin de Partie globale
+        # Scores et fin
+        score_v, score_p = 0, 0
         if fin_partie:
             id_v = id_joueur if vainqueur == "humain" else id_adversaire
             id_p = id_adversaire if vainqueur == "humain" else id_joueur
@@ -234,7 +202,6 @@ else:
             score_p = calculer_nouveau_score(id_partie, id_p, conn)
             db.execute_query("UPDATE Partie SET etat = 'Terminé', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s", (id_v, score_v, score_p, id_partie), conn=conn)
 
-        # Envoi JSON strictement formaté pour jeu.html
         REQUEST_VARS['json_data'] = json.dumps({
             "status": "success",
             "code_carte": code_carte_humain,
@@ -244,5 +211,6 @@ else:
             "extra": extra_humain,
             "fin_partie": fin_partie,
             "vainqueur": vainqueur,
+            "score_vainqueur": score_v,
             "tir_ia": tir_ia_data if (ia_doit_jouer and not (fin_partie and vainqueur == 'humain')) else None
         })

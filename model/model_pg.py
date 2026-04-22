@@ -5,8 +5,10 @@ import random
 import math
 
 # =====================================================================
-# CONNEXION ET REQUÊTES DE BASE
+# CONFIGURATION DU SCHÉMA (Modifie "public" par "batnav" si besoin)
 # =====================================================================
+SCHEMA_NAME = "public" 
+
 def get_connection():
     try:
         with open("config-bd.toml", "rb") as f:
@@ -19,8 +21,9 @@ def get_connection():
             dbname=config["POSTGRESQL_DATABASE"],
             autocommit=True
         )
+        # On définit le schéma dès la connexion
         with conn.cursor() as cur:
-            cur.execute("SET search_path TO public;")
+            cur.execute(f"SET search_path TO {SCHEMA_NAME};")
         return conn
     except Exception as e:
         logger.error(f"Impossible de se connecter : {e}")
@@ -34,7 +37,8 @@ def execute_query(query, params=None, fetch="all", conn=None):
     if not conn: return None
     try:
         with conn.cursor() as cur:
-            cur.execute("SET search_path TO public;")
+            # Sécurité supplémentaire : on force le schéma avant chaque requête
+            cur.execute(f"SET search_path TO {SCHEMA_NAME};")
             cur.execute(query, params)
             res = None
             if fetch == "one":
@@ -51,7 +55,7 @@ def execute_query(query, params=None, fetch="all", conn=None):
         return None
 
 # =====================================================================
-# ÉTAPE 1 : STATISTIQUES ET ACCUEIL
+# STATISTIQUES ET ACCUEIL
 # =====================================================================
 def get_statistiques_accueil(conn=None):
     stats = {'nb_joueurs': 0, 'nb_parties': 0, 'top_joueurs': []}
@@ -94,15 +98,85 @@ def get_stats_joueur(id_joueur, conn=None):
     return stats
 
 def get_classements(type_classement, duree_mois=0, conn=None):
+    """
+    Calcule le classement en temps réel à partir de la table Partie.
+    type_classement: 'IJH' (Joueurs) ou 'CPP' (Pavillons)
+    duree_mois: 0 pour tout, sinon filtre sur les X derniers mois.
+    """
+    
+    # Clause de filtrage temporel
+    interval_clause = ""
+    if duree_mois > 0:
+        interval_clause = f"AND p.date_heure >= CURRENT_DATE - INTERVAL '{duree_mois} month'"
+
     if type_classement == 'IJH':
-        query = "SELECT c.rang, j.pseudo, c.score_total FROM Classement c JOIN Joueur j ON c.id_joueur = j.id_joueur WHERE c.type = 'IJH' AND c.duree_mois = %s ORDER BY c.rang ASC"
+        # On additionne les scores vainqueurs et perdants par joueur
+        query = f"""
+            SELECT 
+                RANK() OVER (ORDER BY SUM(score) DESC) as rang,
+                pseudo,
+                SUM(score) as score_total
+            FROM (
+                -- Points gagnés en tant que vainqueur
+                SELECT j.pseudo, COALESCE(p.score_vainqueur, 0) as score
+                FROM Partie p
+                JOIN Joueur j ON p.id_vainqueur = j.id_joueur
+                WHERE p.etat IN ('Terminé', 'Gagnée', 'Perdue') {interval_clause}
+                
+                UNION ALL
+                
+                -- Points gagnés en tant que perdant
+                SELECT j.pseudo, COALESCE(p.score_perdant, 0) as score
+                FROM Partie p
+                JOIN Participer pa ON p.id_partie = pa.id_partie
+                JOIN Joueur j ON pa.id_joueur = j.id_joueur
+                WHERE p.etat IN ('Terminé', 'Gagnée', 'Perdue') 
+                  AND (p.id_vainqueur IS NULL OR pa.id_joueur != p.id_vainqueur)
+                  {interval_clause}
+            ) sub
+            GROUP BY pseudo
+            ORDER BY score_total DESC
+            LIMIT 50
+        """
     elif type_classement == 'CPP':
-        query = "SELECT c.rang, p.nom_pays, c.score_total FROM Classement c JOIN Pavillon p ON c.code_pays = p.code_pays WHERE c.type = 'CPP' AND c.duree_mois = %s ORDER BY c.rang ASC"
-    else: return []
-    return execute_query(query, (int(duree_mois),), conn=conn) or []
+        # On additionne les scores par pays (Pavillon)
+        query = f"""
+            SELECT 
+                RANK() OVER (ORDER BY SUM(score) DESC) as rang,
+                nom_pays,
+                SUM(score) as score_total
+            FROM (
+                -- Score du vainqueur associé à son pavillon dans la partie
+                SELECT pv.nom_pays, COALESCE(p.score_vainqueur, 0) as score
+                FROM Partie p
+                JOIN Utiliser_Flottille uf ON p.id_partie = uf.id_partie AND uf.id_joueur = p.id_vainqueur
+                JOIN Flottille_Nationale fn ON uf.id_flottille = fn.id_flottille
+                JOIN Pavillon pv ON fn.code_pays = pv.code_pays
+                WHERE p.etat IN ('Terminé', 'Gagnée', 'Perdue') {interval_clause}
+                
+                UNION ALL
+                
+                -- Score du perdant associé à son pavillon dans la partie
+                SELECT pv.nom_pays, COALESCE(p.score_perdant, 0) as score
+                FROM Partie p
+                JOIN Participer pa ON p.id_partie = pa.id_partie
+                JOIN Utiliser_Flottille uf ON p.id_partie = uf.id_partie AND uf.id_joueur = pa.id_joueur
+                JOIN Flottille_Nationale fn ON uf.id_flottille = fn.id_flottille
+                JOIN Pavillon pv ON fn.code_pays = pv.code_pays
+                WHERE p.etat IN ('Terminé', 'Gagnée', 'Perdue') 
+                  AND (p.id_vainqueur IS NULL OR pa.id_joueur != p.id_vainqueur)
+                  {interval_clause}
+            ) sub
+            GROUP BY nom_pays
+            ORDER BY score_total DESC
+        """
+    else:
+        return []
+
+    return execute_query(query, conn=conn)
 
 # =====================================================================
-# ÉTAPE 2 : CRÉATION ET LISTE DES PARTIES
+# CRÉATION ET LOGIQUE DE JEU
 # =====================================================================
 def get_adversaires_virtuels(conn=None):
     query = "SELECT j.id_joueur, j.pseudo, v.niveau FROM Virtuel v JOIN Joueur j ON v.id_joueur = j.id_joueur ORDER BY CASE v.niveau WHEN 'Faible' THEN 1 WHEN 'Intermédiaire' THEN 2 WHEN 'Expert' THEN 3 END;"
@@ -127,14 +201,13 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
 
     try:
         with conn.cursor() as cur:
-            cur.execute("SET search_path TO public;")
+            cur.execute(f"SET search_path TO {SCHEMA_NAME};")
             cur.execute("INSERT INTO Partie (etat) VALUES ('Créée') RETURNING id_partie")
             id_partie = cur.fetchone()[0]
 
             cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_joueur))
             cur.execute("INSERT INTO Participer (id_partie, id_joueur) VALUES (%s, %s)", (id_partie, id_adversaire))
 
-            # CRÉATION DES GRILLES DE JEU POUR GARANTIR L'INTÉGRITÉ DES PIÈGES LORS DES TIRS
             for j_id in [id_joueur, id_adversaire]:
                 for _ in range(2):
                     cur.execute("INSERT INTO Grille (nb_lignes, nb_colonnes) VALUES (10, 10) RETURNING id_grille")
@@ -166,9 +239,6 @@ def creer_partie_complete(id_joueur, id_adversaire, nom_distribution, conn=None)
         conn.autocommit = original_autocommit
         if close_after: conn.close()
 
-# =====================================================================
-# ÉTAPE 3 : FLOTTILLE ET GRILLES
-# =====================================================================
 def initialiser_flottille(id_partie, id_joueur, conn=None):
     try:
         id_flottille = execute_query("INSERT INTO Flottille (type) VALUES ('Nationale') RETURNING id_flottille", fetch="one", conn=conn)[0]
@@ -179,7 +249,6 @@ def initialiser_flottille(id_partie, id_joueur, conn=None):
         tous_navires = execute_query("SELECT id_navire, taille FROM Navire", conn=conn)
         
         if not tous_navires or len(tous_navires) < 5:
-            # Fallback (non supposé arriver grace au peuplement mais par sureté)
             return False
 
         navs_dispos = list(tous_navires)
@@ -227,9 +296,6 @@ def get_cases_flottille(id_partie, id_joueur, conn=None):
                 else: cases_occupees.append(f"{x_start}-{y_start + i}")
     return cases_occupees
 
-# =====================================================================
-# ÉTAPE 4 : LOGIQUE DE JEU, TIRS ET IA
-# =====================================================================
 def creer_tour(id_partie, id_joueur, conn=None):
     res = execute_query("SELECT COALESCE(MAX(numero_ordre), 0) + 1 FROM Tour WHERE id_partie = %s AND id_joueur = %s", (id_partie, id_joueur), fetch="one", conn=conn)
     numero_ordre = res[0] if res else 1
@@ -269,11 +335,9 @@ def est_navire_coule(id_partie, id_joueur_cible, id_navire, conn=None):
     if not nav_info: return False
     taille, x0, y0, sens = nav_info
     cases = [(x0 + i, y0) if sens == 'H' else (x0, y0 + i) for i in range(taille)]
-    
     adv = execute_query("SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s", (id_partie, id_joueur_cible), fetch="one", conn=conn)
     if not adv: return False
     id_adversaire = adv[0]
-
     touches = 0
     for (cx, cy) in cases:
         if execute_query("SELECT 1 FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s AND tour.id_joueur = %s AND t.x = %s AND t.y = %s AND t.resultat IN ('Touché', 'Coulé') LIMIT 1", (id_partie, id_adversaire, cx, cy), fetch="one", conn=conn):
@@ -287,14 +351,35 @@ def est_flotte_detruite(id_partie, id_joueur_verif, conn=None):
     res = execute_query("SELECT COUNT(*) FROM Composition_Flottille cf JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille WHERE uf.id_partie = %s AND uf.id_joueur = %s AND cf.etat != 'Coulé'", (id_partie, id_joueur_verif), fetch="one", conn=conn)
     return res and res[0] == 0
 
+def calculer_score_final(id_partie, id_joueur, conn=None):
+    query = """
+        SELECT COUNT(*) as total, 
+               SUM(CASE WHEN t.resultat IN ('Touché', 'Coulé') THEN 1 ELSE 0 END) as touches 
+        FROM Tir t 
+        JOIN Tour tour ON t.id_tour = tour.id_tour 
+        WHERE tour.id_partie = %s AND tour.id_joueur = %s
+    """
+    res = execute_query(query, (id_partie, id_joueur), fetch="one", conn=conn)
+    if not res or res[0] == 0: return 0
+    return int(100 * (res[1] or 0) / res[0])
+
+def cloturer_partie_db(id_partie, id_vainqueur, id_perdant, conn=None):
+    score_v = calculer_score_final(id_partie, id_vainqueur, conn)
+    score_p = calculer_score_final(id_partie, id_perdant, conn)
+    execute_query(
+        "UPDATE Partie SET etat = 'Terminé', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s",
+        (id_vainqueur, score_v, score_p, id_partie), fetch=None, conn=conn
+    )
+    return score_v
+
 # =====================================================================
-# ÉTAPE 5 : GESTION DES CARTES PIÈGES ET SOINS
+# GESTION DES PIÈGES ET IA
 # =====================================================================
 def placer_piege(id_partie, id_joueur, type_piege, conn=None):
     res = execute_query("SELECT id_grille FROM Grille_Partie WHERE id_partie=%s AND id_joueur=%s LIMIT 1", (id_partie, id_joueur), fetch="one", conn=conn)
     if res:
         id_g = res[0]
-        x, y = random.randint(1, 8), random.randint(1, 10) # 8 pour éviter le débord du leurre
+        x, y = random.randint(1, 8), random.randint(1, 10)
         sens = random.choice(['H', 'V']) if type_piege == 'Leurre' else 'H'
         execute_query("INSERT INTO Contenu_Grille (id_grille, type, x, y, taille, etat) VALUES (%s, %s, %s, %s, %s, 'Actif')", (id_g, type_piege, x, y, 3 if type_piege=='Leurre' else 1), fetch=None, conn=conn)
         return {"x": x, "y": y, "sens": sens, "taille": 3 if type_piege=='Leurre' else 1}
@@ -338,7 +423,6 @@ def appliquer_mpm(id_partie, id_joueur, id_adversaire, conn=None):
     if res:
         id_tir, tx, ty = res
         execute_query("DELETE FROM Tir WHERE id_tir = %s", (id_tir,), fetch=None, conn=conn)
-        
         id_navire, _ = verifier_impact(id_partie, id_joueur, tx, ty, conn=conn)
         if id_navire:
             f_res = execute_query("SELECT id_flottille FROM Utiliser_Flottille WHERE id_partie=%s AND id_joueur=%s", (id_partie, id_joueur), fetch="one", conn=conn)
@@ -347,28 +431,19 @@ def appliquer_mpm(id_partie, id_joueur, id_adversaire, conn=None):
         return {"annule_tir": {"x": tx, "y": ty}}
     return None
 
-# =====================================================================
-# ÉTAPE 6 : INTELLIGENCE ARTIFICIELLE
-# =====================================================================
 def ia_jouer_tour(id_partie, conn=None):
     players = execute_query("SELECT p.id_joueur, v.niveau FROM Participer p LEFT JOIN Virtuel v ON p.id_joueur = v.id_joueur WHERE p.id_partie = %s", (id_partie,), conn=conn)
     id_joueur_ia = id_humain = niveau_ia = None
     if players:
         for pid, niveau in players:
-            if niveau is not None: 
-                id_joueur_ia, niveau_ia = pid, niveau
-            else: 
-                id_humain = pid
-                
+            if niveau is not None: id_joueur_ia, niveau_ia = pid, niveau
+            else: id_humain = pid
     if not id_joueur_ia or not id_humain: return None
-
     tirs_ia = execute_query("SELECT t.x, t.y, t.resultat FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s AND tour.id_joueur = %s", (id_partie, id_joueur_ia), conn=conn) or []
     cases_tirees = set((row[0], row[1]) for row in tirs_ia)
     cases_disponibles = [c for c in [(x, y) for x in range(1, 11) for y in range(1, 11)] if c not in cases_tirees]
-    
     if not cases_disponibles: return None
     if niveau_ia == 'Faible': return random.choice(cases_disponibles)
-
     cibles_potentielles = []
     for tx, ty in [(row[0], row[1]) for row in tirs_ia if row[2] == 'Touché']:
         id_navire, _ = verifier_impact(id_partie, id_humain, tx, ty, conn=conn)
@@ -376,12 +451,10 @@ def ia_jouer_tour(id_partie, conn=None):
             for ax, ay in [(tx+1, ty), (tx-1, ty), (tx, ty+1), (tx, ty-1)]:
                 if 1 <= ax <= 10 and 1 <= ay <= 10 and (ax, ay) not in cases_tirees:
                     cibles_potentielles.append((ax, ay))
-
     if niveau_ia == 'Expert' and not cibles_potentielles and random.random() < 0.30:
         cibles_expertes = [(int(p.split('-')[0]), int(p.split('-')[1])) for p in get_cases_flottille(id_partie, id_humain, conn=conn)]
         cibles_valides = [c for c in cibles_expertes if c not in cases_tirees]
         if cibles_valides: return random.choice(cibles_valides)
-
     if cibles_potentielles: return random.choice(cibles_potentielles)
     cases_noires = [(x, y) for (x, y) in cases_disponibles if (x + y) % 2 == 0]
     return random.choice(cases_noires) if cases_noires else random.choice(cases_disponibles)
