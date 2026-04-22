@@ -3,7 +3,7 @@ import random
 import model.model_pg as db
 
 def calculer_nouveau_score(id_partie, id_joueur_score, conn):
-    """Calcul précis du score : 100 * (Touchés / Total)"""
+    """Calcul précis du score : 100 * (17 / Total)"""
     import model.model_pg as db # Sécurisation du scope due au exec() de server.py
     query = """
         SELECT COUNT(*) as total, 
