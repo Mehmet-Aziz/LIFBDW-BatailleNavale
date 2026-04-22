@@ -2,8 +2,23 @@
 import json
 from model.model_pg import (
     verifier_impact, creer_tour, enregistrer_tir_db, piocher_carte_partie,
-    execute_query, est_navire_coule, calculer_score, ia_jouer_tour
+    execute_query, est_navire_coule, ia_jouer_tour
 )
+
+# Fonction interne pour appliquer la vraie formule : 100 * (Tirs Touchés / Tirs Totaux)
+def calculer_nouveau_score(id_partie, id_joueur_score, conn):
+    query = """
+        SELECT COUNT(*) as total, 
+               SUM(CASE WHEN t.resultat IN ('Touché', 'Coulé') THEN 1 ELSE 0 END) as touches 
+        FROM Tir t 
+        JOIN Tour tour ON t.id_tour = tour.id_tour 
+        WHERE tour.id_partie = %s AND tour.id_joueur = %s
+    """
+    res = execute_query(query, (id_partie, id_joueur_score), fetch="one", conn=conn)
+    if not res or res[0] == 0: return 0
+    total = res[0]
+    touches = res[1] or 0
+    return int(100 * (touches / total))
 
 id_partie = POST.get('id_partie', [None])[0]
 x_val = POST.get('x', [None])[0]
@@ -17,7 +32,6 @@ else:
     x, y = int(x_val), int(y_val)
     id_partie = int(id_partie)
 
-    # Identifier l'adversaire (joueur virtuel)
     res_adv = execute_query(
         "SELECT id_joueur FROM Participer WHERE id_partie = %s AND id_joueur != %s",
         (id_partie, id_joueur), fetch="one", conn=conn
@@ -46,7 +60,7 @@ else:
 
             enregistrer_tir_db(id_tour_humain, x, y, resultat_humain, conn=conn)
 
-            # Vérifier si l'humain a gagné
+            # Vérifier victoire humain
             restants = execute_query(
                 "SELECT COUNT(*) FROM Composition_Flottille cf "
                 "JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille "
@@ -56,14 +70,13 @@ else:
             fin_partie = (restants and restants[0] == 0)
 
             if fin_partie:
-                nb_tirs = execute_query(
-                    "SELECT COUNT(*) FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour WHERE tour.id_partie = %s",
-                    (id_partie,), fetch="one", conn=conn
-                )
-                score = calculer_score(nb_tirs[0]) if nb_tirs else 0
+                # Calcul des nouveaux scores avec la formule
+                score_h = calculer_nouveau_score(id_partie, id_joueur, conn)
+                score_ia = calculer_nouveau_score(id_partie, id_adversaire, conn)
+                
                 execute_query(
-                    "UPDATE Partie SET etat = 'Gagnée', id_vainqueur = %s, score_vainqueur = %s WHERE id_partie = %s",
-                    (id_joueur, score, id_partie), conn=conn
+                    "UPDATE Partie SET etat = 'Gagnée', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s",
+                    (id_joueur, score_h, score_ia, id_partie), conn=conn
                 )
                 REQUEST_VARS['json_data'] = json.dumps({
                     "status": "success", "resultat": resultat_humain, "carte": carte_humain,
@@ -73,8 +86,6 @@ else:
                 # --- TOUR DE L'IA ---
                 id_tour_ia = creer_tour(id_partie, id_adversaire, conn=conn)
                 carte_ia = piocher_carte_partie(id_partie, id_adversaire, id_tour_ia, conn=conn)
-                
-                # Appel direct à notre fonction IA !
                 cible = ia_jouer_tour(id_partie, conn=conn)
                 
                 if cible:
@@ -92,7 +103,7 @@ else:
 
                     enregistrer_tir_db(id_tour_ia, x_ia, y_ia, resultat_ia, conn=conn)
 
-                    # Vérifier si l'IA a gagné
+                    # Vérifier victoire IA
                     restants_humain = execute_query(
                         "SELECT COUNT(*) FROM Composition_Flottille cf "
                         "JOIN Utiliser_Flottille uf ON cf.id_flottille = uf.id_flottille "
@@ -101,15 +112,13 @@ else:
                     )
                     
                     if restants_humain and restants_humain[0] == 0:
-                        nb_tirs_ia = execute_query(
-                            "SELECT COUNT(*) FROM Tir t JOIN Tour tour ON t.id_tour = tour.id_tour "
-                            "WHERE tour.id_partie = %s AND tour.id_joueur = %s",
-                            (id_partie, id_adversaire), fetch="one", conn=conn
-                        )
-                        score_ia = calculer_score(nb_tirs_ia[0]) if nb_tirs_ia else 0
+                        # L'IA gagne ! Calcul des scores :
+                        score_h = calculer_nouveau_score(id_partie, id_joueur, conn)
+                        score_ia = calculer_nouveau_score(id_partie, id_adversaire, conn)
+                        
                         execute_query(
-                            "UPDATE Partie SET etat = 'Perdue', id_vainqueur = %s, score_vainqueur = %s WHERE id_partie = %s",
-                            (id_adversaire, score_ia, id_partie), conn=conn
+                            "UPDATE Partie SET etat = 'Perdue', id_vainqueur = %s, score_vainqueur = %s, score_perdant = %s WHERE id_partie = %s",
+                            (id_adversaire, score_ia, score_h, id_partie), conn=conn
                         )
                         REQUEST_VARS['json_data'] = json.dumps({
                             "status": "success", "resultat": resultat_humain, "carte": carte_humain,
@@ -124,7 +133,6 @@ else:
                             "tir_ia": {"x": x_ia, "y": y_ia, "resultat": resultat_ia}
                         })
                 else:
-                    # Sécurité si la grille est pleine
                     REQUEST_VARS['json_data'] = json.dumps({
                         "status": "success", "resultat": resultat_humain, "carte": carte_humain,
                         "fin_partie": False

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Classements - Bataille Navale 2026{% endblock %}
+{% block title %}Classements - Bataille Navale{% endblock %}
 
 {% block main_content %}
 <div style="background: rgba(0,0,0,0.4); padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -13,36 +13,36 @@
         <div style="display: flex; flex-direction: column; gap: 5px;">
             <label for="type" style="font-weight: bold; color: var(--text);">Type de Classement :</label>
             <select name="type" id="type" style="padding: 8px; border-radius: 4px; background: #073642; color: #fdf6e3; border: 1px solid var(--action-orange); font-size: 1rem;">
-                <option value="IJH" {% if type == 'IJH' %}selected{% endif %}>Indice Joueur Humain (IJH)</option>
-                <option value="CPP" {% if type == 'CPP' %}selected{% endif %}>Classement Par Pavillon (CPP)</option>
+                <option value="IJH" {% if REQUEST_VARS.get('type') == 'IJH' %}selected{% endif %}>Indice Joueur Humain (IJH)</option>
+                <option value="CPP" {% if REQUEST_VARS.get('type') == 'CPP' %}selected{% endif %}>Classement Par Pavillon (CPP)</option>
             </select>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 5px;">
             <label for="duree" style="font-weight: bold; color: var(--text);">Période d'Analyse :</label>
             <select name="duree" id="duree" style="padding: 8px; border-radius: 4px; background: #073642; color: #fdf6e3; border: 1px solid var(--action-orange); font-size: 1rem;">
-                <option value="0" {% if duree == 0 %}selected{% endif %}>Général (Historique complet)</option>
-                <option value="1" {% if duree == 1 %}selected{% endif %}>Dernier Mois</option>
-                <option value="3" {% if duree == 3 %}selected{% endif %}>3 Derniers Mois</option>
-                <option value="12" {% if duree == 12 %}selected{% endif %}>12 Derniers Mois</option>
+                <option value="0" {% if REQUEST_VARS.get('duree') == 0 %}selected{% endif %}>Général (Historique complet)</option>
+                <option value="1" {% if REQUEST_VARS.get('duree') == 1 %}selected{% endif %}>Dernier Mois</option>
+                <option value="3" {% if REQUEST_VARS.get('duree') == 3 %}selected{% endif %}>3 Derniers Mois</option>
+                <option value="12" {% if REQUEST_VARS.get('duree') == 12 %}selected{% endif %}>12 Derniers Mois</option>
             </select>
         </div>
 
         <button type="submit" style="background: var(--action-orange); color: #fdf6e3; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s;">
-            Afficher
+            Filtrer
         </button>
     </form>
 
-    <table style="width: 100%; border-collapse: collapse; background: #073642; border-radius: 6px; overflow: hidden; font-size: 1.1rem;">
+    <table style="width: 100%; border-collapse: collapse; background: #073642; border-radius: 6px; overflow: hidden; font-size: 1.1rem; text-align: left;">
         <thead>
             <tr style="background: #002b36; border-bottom: 2px solid var(--action-orange);">
-                <th style="padding: 15px; text-align: left; color: var(--text);">Rang</th>
-                <th style="padding: 15px; text-align: left; color: var(--text);">{% if type == 'CPP' %}Pavillon{% else %}Joueur / Capitaine{% endif %}</th>
+                <th style="padding: 15px; color: var(--text);">Rang</th>
+                <th style="padding: 15px; color: var(--text);">{% if REQUEST_VARS.get('type') == 'CPP' %}Pavillon{% else %}Joueur{% endif %}</th>
                 <th style="padding: 15px; text-align: right; color: var(--text);">Score Total</th>
             </tr>
         </thead>
         <tbody>
-            {% for ligne in classements %}
+            {% for ligne in REQUEST_VARS.get('classements', []) %}
             <tr style="border-bottom: 1px solid #002b36; transition: background-color 0.2s;">
                 <td style="padding: 12px 15px;">#{{ ligne[0] }}</td>
                 <td style="padding: 12px 15px; font-weight: bold;">{{ ligne[1] }}</td>

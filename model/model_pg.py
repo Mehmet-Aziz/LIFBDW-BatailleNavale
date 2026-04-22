@@ -85,12 +85,77 @@ def get_statistiques_accueil(conn=None):
 def get_stats_joueur(id_joueur, conn=None):
     stats = {
         'parties_finies_3m': 0,
-        'victoires_par_niveau': [],
+        'stats_contre_ia': {'victoires': 0, 'defaites': 0},
         'moyenne_tours': 0,
         'points_2026': 0,
         'cartes_tirees': []
     }
-    # (Les requêtes de stats sont conservées à l'identique)
+    
+    q1 = """
+        SELECT COUNT(*) FROM Partie p
+        JOIN Participer pa ON p.id_partie = pa.id_partie
+        WHERE pa.id_joueur = %s 
+          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
+          AND p.date_heure >= CURRENT_DATE - INTERVAL '3 months'
+    """
+    res1 = execute_query(q1, (id_joueur,), fetch="one", conn=conn)
+    if res1: stats['parties_finies_3m'] = res1[0]
+    
+    # Remplacement des niveaux par les victoires/défaites contre l'IA
+    q2 = """
+        SELECT 
+            COUNT(CASE WHEN p.id_vainqueur = %s THEN 1 END) as victoires,
+            COUNT(CASE WHEN p.id_vainqueur != %s AND p.id_vainqueur IS NOT NULL THEN 1 END) as defaites
+        FROM Partie p
+        JOIN Participer pa_joueur ON p.id_partie = pa_joueur.id_partie
+        JOIN Participer pa_adv ON p.id_partie = pa_adv.id_partie
+        JOIN Virtuel v ON pa_adv.id_joueur = v.id_joueur
+        WHERE pa_joueur.id_joueur = %s 
+          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
+    """
+    res2 = execute_query(q2, (id_joueur, id_joueur, id_joueur), fetch="one", conn=conn)
+    if res2: 
+        stats['stats_contre_ia'] = {'victoires': res2[0] or 0, 'defaites': res2[1] or 0}
+
+    q3 = """
+        SELECT COALESCE(ROUND(AVG(nb_tours), 1), 0)
+        FROM (
+            SELECT id_partie, COUNT(*) as nb_tours
+            FROM Tour
+            WHERE id_joueur = %s
+            GROUP BY id_partie
+        ) sub
+    """
+    res3 = execute_query(q3, (id_joueur,), fetch="one", conn=conn)
+    if res3: stats['moyenne_tours'] = float(res3[0])
+
+    q4 = """
+        SELECT COALESCE(SUM(
+            CASE
+                WHEN p.id_vainqueur = %s THEN p.score_vainqueur
+                ELSE p.score_perdant
+            END
+        ), 0)
+        FROM Partie p
+        JOIN Participer pa ON p.id_partie = pa.id_partie
+        WHERE pa.id_joueur = %s 
+          AND EXTRACT(YEAR FROM p.date_heure) = 2026
+          AND p.etat IN ('Gagnée', 'Perdue', 'Terminé')
+    """
+    res4 = execute_query(q4, (id_joueur, id_joueur), fetch="one", conn=conn)
+    if res4: stats['points_2026'] = int(res4[0])
+
+    q5 = """
+        SELECT tc.nom, COUNT(c.id_carte) as nb_tirees
+        FROM Carte c
+        JOIN Type_Carte tc ON c.code_type_carte = tc.code
+        WHERE c.id_joueur_piocheur = %s
+        GROUP BY tc.nom
+        ORDER BY nb_tirees DESC
+    """
+    res5 = execute_query(q5, (id_joueur,), conn=conn)
+    if res5: stats['cartes_tirees'] = res5
+
     return stats
 
 def get_classements(type_classement, duree_mois=0, conn=None):
@@ -359,9 +424,12 @@ def est_navire_coule(id_partie, id_joueur_cible, id_navire, conn=None):
 
 def ia_jouer_tour(id_partie, conn=None):
     """
-    IA Niveau Intermédiaire : Stratégie Damier + Recherche locale
+    IA multi-niveaux :
+    - Faible : Aléatoire pur
+    - Intermédiaire : Damier + Recherche locale
+    - Expert : Damier + Recherche locale + 30% chance de triche intelligente
     """
-    # 1. Identifier l'IA et son adversaire dans cette partie
+    # 1. Identifier l'IA, le joueur humain et le niveau de l'IA
     query_players = """
         SELECT p.id_joueur, v.niveau
         FROM Participer p
@@ -369,13 +437,16 @@ def ia_jouer_tour(id_partie, conn=None):
         WHERE p.id_partie = %s
     """
     players = execute_query(query_players, (id_partie,), conn=conn)
-    id_joueur_ia = id_humain = None
+    id_joueur_ia = id_humain = niveau_ia = None
     
     if players:
         for pid, niveau in players:
-            if niveau is not None: id_joueur_ia = pid
-            else: id_humain = pid
-            
+            if niveau is not None: 
+                id_joueur_ia = pid
+                niveau_ia = niveau
+            else: 
+                id_humain = pid
+                
     if not id_joueur_ia or not id_humain: return None
 
     # 2. Historique des tirs de l'IA
@@ -387,7 +458,16 @@ def ia_jouer_tour(id_partie, conn=None):
     tirs_ia = execute_query(query_tirs, (id_partie, id_joueur_ia), conn=conn) or []
     cases_tirees = set((row[0], row[1]) for row in tirs_ia)
 
-    # 3. Phase "Chasse" : Chercher l'humain et voir s'il y a des navires touchés non coulés
+    toutes_cases = [(x, y) for x in range(1, 11) for y in range(1, 11)]
+    cases_disponibles = [c for c in toutes_cases if c not in cases_tirees]
+    
+    if not cases_disponibles: return None
+
+    # --- NIVEAU FAIBLE : Tir purement aléatoire ---
+    if niveau_ia == 'Faible':
+        return random.choice(cases_disponibles)
+
+    # --- PHASE CHASSE COMMUNE (INTERMÉDIAIRE & EXPERT) ---
     cibles_potentielles = []
     touches = [(row[0], row[1]) for row in tirs_ia if row[2] == 'Touché']
         
@@ -399,18 +479,32 @@ def ia_jouer_tour(id_partie, conn=None):
                 if 1 <= ax <= 10 and 1 <= ay <= 10 and (ax, ay) not in cases_tirees:
                     cibles_potentielles.append((ax, ay))
 
+    # --- NIVEAU EXPERT : "Intuition" ciblée ---
+    # Si l'expert ne "chasse" pas activement, il a 30% de deviner où est un bateau !
+    if niveau_ia == 'Expert' and not cibles_potentielles:
+        if random.random() < 0.30:
+            cases_flotte = get_cases_flottille(id_partie, id_humain, conn=conn)
+            cibles_expertes = []
+            for c in cases_flotte:
+                parts = c.split('-')
+                cibles_expertes.append((int(parts[0]), int(parts[1])))
+            
+            cibles_valides = [c for c in cibles_expertes if c not in cases_tirees]
+            if cibles_valides:
+                return random.choice(cibles_valides)
+
+    # Si l'IA (Intermédiaire ou Expert) est en chasse, on valide la cible locale
     if cibles_potentielles:
         return random.choice(cibles_potentielles)
 
-    # 4. Phase "Recherche" : Damier (une case sur deux)
-    toutes_cases = [(x, y) for x in range(1, 11) for y in range(1, 11)]
-    cases_disponibles = [c for c in toutes_cases if c not in cases_tirees]
+    # --- PHASE RECHERCHE COMMUNE (INTERMÉDIAIRE & EXPERT) ---
+    # Damier : on tire en diagonale (x+y pair)
     cases_noires = [(x, y) for (x, y) in cases_disponibles if (x + y) % 2 == 0]
     
-    if cases_noires: return random.choice(cases_noires)
-    elif cases_disponibles: return random.choice(cases_disponibles)
+    if cases_noires: 
+        return random.choice(cases_noires)
         
-    return None
+    return random.choice(cases_disponibles)
 
 def calculer_score(nb_tirs_total):
     if nb_tirs_total == 0: return 0
