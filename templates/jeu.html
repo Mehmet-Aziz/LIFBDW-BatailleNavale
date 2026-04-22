@@ -16,10 +16,8 @@
             <div class="grid" id="grid-flotte">
                 {% for y in range(1, 11) %}
                     {% for x in range(1, 11) %}
-                        <!-- On crée une chaîne "x-y" pour vérifier si elle est dans la flotte -->
                         {% set case_coord = x | string + '-' + y | string %}
-                        
-                        <!-- Si la coordonnée est dans REQUEST_VARS['cases_flotte'], on ajoute la classe 'navire' -->
+                        <!-- On ajoute l'id "flotte-x-y" pour que l'IA puisse marquer ses impacts ici -->
                         <div class="cell {% if case_coord in REQUEST_VARS.get('cases_flotte', []) %}navire{% endif %}" 
                              id="flotte-{{ x }}-{{ y }}">
                         </div>
@@ -62,23 +60,18 @@
     }
     .cell {
         width: 40px; height: 40px;
-        background-color: #073642; /* Couleur eau par défaut */
+        background-color: #073642; 
         display: flex; justify-content: center; align-items: center;
         color: rgba(255, 255, 255, 0.2); font-size: 0.7em; user-select: none;
     }
     
-    /* === NOUVEAU : Classe visuelle pour nos navires === */
-    .cell.navire {
-        background-color: #93a1a1; /* Gris métallisé pour les bateaux */
-        border: 1px solid #586e75;
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-    }
-
+    .cell.navire { background-color: #93a1a1; border: 1px solid #586e75; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
     .target-cell { cursor: crosshair; transition: background-color 0.2s, transform 0.1s; }
     .target-cell:hover { background-color: #2aa198; transform: scale(1.05); }
+    
     .cell.touche { background-color: #dc322f; color: white; }
-    .cell.eau { background-color: #268bd2; }
-    .cell.coule { background-color: #000000; color: white;}
+    .cell.eau { background-color: #268bd2; color: rgba(255, 255, 255, 0.7); }
+    .cell.coule { background-color: #000000; color: white; border: 1px solid #dc322f;}
 </style>
 
 <script>
@@ -100,15 +93,39 @@
         })
         .then(response => response.json())
         .then(data => {
+            // 1. Afficher l'impact du tir humain
             if(data.resultat === 'Eau') {
-                cell.classList.add('eau');
-                cell.innerText = '≈';
+                cell.classList.add('eau'); cell.innerText = '≈';
             } else if (data.resultat === 'Touché') {
-                cell.classList.add('touche');
-                cell.innerText = 'X';
+                cell.classList.add('touche'); cell.innerText = 'X';
             } else if (data.resultat === 'Coulé') {
-                cell.classList.add('coule');
-                cell.innerText = '☠';
+                cell.classList.add('coule'); cell.innerText = '☠';
+            }
+
+            // 2. NOUVEAU: Afficher la riposte de l'IA sur notre flotte
+            if(data.tir_ia) {
+                const flotteCell = document.getElementById(`flotte-${data.tir_ia.x}-${data.tir_ia.y}`);
+                if(flotteCell) {
+                    if(data.tir_ia.resultat === 'Eau') {
+                        flotteCell.classList.add('eau'); flotteCell.innerText = '≈';
+                    } else if (data.tir_ia.resultat === 'Touché') {
+                        flotteCell.classList.add('touche'); flotteCell.innerText = 'X';
+                    } else if (data.tir_ia.resultat === 'Coulé') {
+                        flotteCell.classList.add('coule'); flotteCell.innerText = '☠';
+                    }
+                }
+            }
+
+            // 3. Vérifier si quelqu'un a gagné
+            if(data.fin_partie) {
+                setTimeout(() => {
+                    if (data.vainqueur === 'humain') {
+                        alert("Félicitations Amiral ! Vous avez gagné la bataille !");
+                    } else {
+                        alert("Votre flotte a été détruite... L'IA l'emporte.");
+                    }
+                    window.location.href = "/parties";
+                }, 500);
             }
         })
         .catch(error => console.error("Erreur:", error));

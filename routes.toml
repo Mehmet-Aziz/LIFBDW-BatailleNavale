@@ -9,12 +9,12 @@ controleur = "controleurs/accueil.py"
 template = "accueil.html"
 
 [[routes]]
-url = "connexion"  # ⬅️ Le slash a été retiré ici !
+url = "connexion"
 controleur = "controleurs/connexion.py"
 template = "connexion.html"
 
 [[routes]]
-url = "parties"  # ⬅️ Le slash a été retiré ici !
+url = "parties"
 controleur = "controleurs/parties.py"
 template = "parties.html"
 
@@ -27,3 +27,13 @@ template = "jeu.html"
 url = "tirer"
 controleur = "controleurs/tirer.py"
 template = "api_reponse.html"
+
+[[routes]]
+url = "classement"
+controleur = "controleurs/classement.py"
+template = "classement.html"
+
+[[routes]]
+url = "deconnexion"
+controleur = "controleurs/deconnexion.py"
+template = "connexion.html"
