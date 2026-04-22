@@ -1,14 +1,32 @@
-/* Couleurs thématiques "Bataille Navale" */
+/* ==========================================================================
+   IMPORTATION DES POLICES (Thème Élégant et Lisible)
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Playfair+Display:wght@600;700&display=swap');
+
+/* ==========================================================================
+   VARIABLES THÉMATIQUES
+   ========================================================================== */
 :root {
+    /* Couleurs de base de l'océan */
     --deep-ocean: #002b36;
     --water-blue: #073642;
     --action-orange: #cb4b16;
     --text-color: #fdf6e3;
+    
+    /* Nouvelles couleurs Pirate */
+    --gold-berry: #f1c40f;      /* Or / Trésor */
+    --blood-red: #e74c3c;       /* Rouge Marine / Danger */
+    --parchment: #fcf8f2;       /* Fond clair très épuré */
+    --wood-dark: #2c1e16;       /* Bois très sombre */
+    --wood-light: #5d4037;      /* Bois clair */
 }
 
+/* ==========================================================================
+   STYLES GLOBAUX
+   ========================================================================== */
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Nunito', sans-serif; /* Police claire, douce et moderne */
     background-color: var(--deep-ocean);
     color: var(--text-color);
     display: flex;
@@ -16,46 +34,179 @@ body {
     min-height: 100vh;
 }
 
+/* Typographie épique pour les titres (Lisible et classe) */
+h1, h2, h3, .carte-nom {
+    font-family: 'Playfair Display', serif;
+    letter-spacing: 0.5px;
+    margin-top: 0;
+}
+
 header {
-    background-color: var(--water-blue);
-    padding: 1rem;
+    background-color: var(--wood-dark);
+    padding: 1.2rem;
     text-align: center;
-    border-bottom: 2px solid var(--action-orange);
+    border-bottom: 3px solid var(--gold-berry);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+header h1 {
+    color: var(--gold-berry);
+    margin: 5px 0 0 0;
+    font-size: 2.2rem;
 }
 
 .main-container {
-    display: flex; /* Flexbox pour le menu latéral et le contenu  */
+    display: flex;
     flex: 1;
 }
-
-nav {
-    width: 200px;
-    background-color: rgba(0,0,0,0.2);
-    padding: 1rem;
-}
-
-nav ul { list-style: none; padding: 0; }
-nav a { color: var(--text-color); text-decoration: none; display: block; padding: 10px 0; }
-nav a:hover { color: var(--action-orange); } /* Pseudo-classe [cite: 6165] */
 
 main {
     flex: 1;
     padding: 2rem;
 }
 
-/* --- Variables thématiques (rappel) --- */
-:root {
-    --deep-ocean: #002b36;
-    --water-blue: #073642;
-    --action-orange: #cb4b16;
-    --text-color: #fdf6e3;
+/* ==========================================================================
+   MENU LATÉRAL
+   ========================================================================== */
+nav {
+    width: 220px;
+    background-color: rgba(0, 0, 0, 0.25);
+    padding: 1.5rem 1rem;
+    border-right: 1px solid rgba(241, 196, 15, 0.3); /* Bordure subtile */
 }
 
-/* --- Style du Footer --- */
-/* --- Style Principal du Footer --- */
+nav ul { list-style: none; padding: 0; margin: 0; }
+nav a { 
+    color: var(--text-color); 
+    text-decoration: none; 
+    display: block; 
+    padding: 10px; 
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+    border-radius: 4px;
+}
+
+nav a:hover { 
+    color: var(--gold-berry); 
+    background-color: rgba(255, 255, 255, 0.05);
+    transform: translateX(5px);
+}
+
+/* ==========================================================================
+   CARTES D'INFORMATION (Avis de recherche, stats)
+   ========================================================================== */
+.stats, .carte-display {
+    background-color: var(--parchment);
+    color: var(--wood-dark);
+    border: 1px solid #e0d6c8;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    padding: 20px;
+}
+
+.stats h3, .stats h4, .carte-display .carte-nom {
+    color: var(--blood-red);
+}
+
+.carte-display {
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.carte-display:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+/* ==========================================================================
+   FORMULAIRES & CADRES (Correction page de connexion)
+   ========================================================================== */
+fieldset {
+    background-color: var(--parchment);
+    color: var(--wood-dark);
+    border: 2px solid var(--wood-light);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    padding: 25px 20px 20px 20px;
+    margin-top: 20px;
+}
+
+legend {
+    background-color: var(--parchment);
+    color: var(--blood-red);
+    border: 2px solid var(--wood-light);
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+input, select {
+    font-family: 'Nunito', sans-serif;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* ==========================================================================
+   BOUTONS
+   ========================================================================== */
+button, .btn {
+    background-color: var(--action-orange);
+    border: none;
+    color: white;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+button:hover, .btn:hover {
+    background-color: #e67e22;
+    cursor: pointer;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* ==========================================================================
+   GRILLES DE JEU (Épuré)
+   ========================================================================== */
+.grid {
+    background-color: var(--water-blue) !important;
+    border: 4px solid var(--wood-dark) !important;
+    border-radius: 4px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    padding: 6px !important;
+}
+
+/* ==========================================================================
+   TABLEAUX (Classements)
+   ========================================================================== */
+table {
+    border: 1px solid var(--wood-dark);
+}
+
+th {
+    background-color: var(--wood-dark) !important;
+    color: var(--gold-berry) !important;
+    font-family: 'Playfair Display', serif;
+    letter-spacing: 0.5px;
+}
+
+td {
+    color: var(--text-color);
+}
+
+/* ==========================================================================
+   FOOTER (Vagues et Navires - Intact)
+   ========================================================================== */
 footer.main-footer {
     position: relative;
-    background-color: var(--water-blue); /* #073642 */
+    background-color: var(--water-blue); 
     width: 100%;
     min-height: 200px;
     margin-top: 80px;
@@ -65,12 +216,29 @@ footer.main-footer {
     z-index: 1;
 }
 
-/* --- Vagues : Taille augmentée et position baissée --- */
+.footer-inner p {
+    color: #839496; 
+    margin: 5px 0;
+    font-size: 0.95em;
+}
+
+.footer-inner a {
+    color: var(--gold-berry);
+    text-decoration: none;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+
+.footer-inner a:hover {
+    color: var(--action-orange);
+}
+
+/* --- Vagues SVG --- */
 .waves-container {
     width: 100%;
-    height: 150px;       /* Taille augmentée pour plus de relief */
+    height: 150px;       
     position: absolute;
-    top: 100px;          /* Valeur ajustée pour les baisser sur le footer */
+    top: 100px;          
     left: 0;
     z-index: 5;
 }
@@ -80,85 +248,78 @@ footer.main-footer {
     height: 100%;
 }
 
-/* --- Mouvement Asynchrone --- */
 .parallax-waves > use {
     animation: move-forever 25s cubic-bezier(.55, .5, .45, .5) infinite;
 }
 
-/* Chaque vague a une durée et un délai différent pour ne pas bouger en bloc */
-/* 1. Écume lointaine (Blanche) */
-.parallax-waves > use:nth-child(1) { 
-    animation-delay: -2s; animation-duration: 7s; 
-    fill: rgba(255, 255, 255, 0.3); 
-}
-/* 2. Bleu de surface */
-.parallax-waves > use:nth-child(2) { 
-    animation-delay: -5s; animation-duration: 10s; 
-    fill: rgba(135, 206, 250, 0.5); /* Sky Blue */
-}
-/* 3. Crête vive (Blanche) */
-.parallax-waves > use:nth-child(3) { 
-    animation-delay: -3s; animation-duration: 13s; 
-    fill: rgba(255, 255, 255, 0.5); 
-}
-/* 4. Bleu Cyan */
-.parallax-waves > use:nth-child(4) { 
-    animation-delay: -8s; animation-duration: 16s; 
-    fill: rgba(0, 191, 255, 0.4); /* Deep Sky Blue */
-}
-/* 5. Vague intermédiaire */
-.parallax-waves > use:nth-child(5) { 
-    animation-delay: -1s; animation-duration: 19s; 
-    fill: rgba(72, 118, 255, 0.6); 
-}
-/* 6. Écume moyenne */
-.parallax-waves > use:nth-child(6) { 
-    animation-delay: -10s; animation-duration: 22s; 
-    fill: rgba(255, 255, 255, 0.2); 
-}
-/* 7. Bleu Royal */
-.parallax-waves > use:nth-child(7) { 
-    animation-delay: -6s; animation-duration: 25s; 
-    fill: rgba(65, 105, 225, 0.7); 
-}
-/* 8. Bleu profond transparent */
-.parallax-waves > use:nth-child(8) { 
-    animation-delay: -12s; animation-duration: 30s; 
-    fill: rgba(30, 144, 255, 0.5); 
-}
-/* 9. Bleu intense */
-.parallax-waves > use:nth-child(9) { 
-    animation-delay: -15s; animation-duration: 35s; 
-    fill: rgba(0, 0, 255, 0.3); 
-}
-/* 10. Base de l'océan (Se fond avec le footer) */
-.parallax-waves > use:nth-child(10) { 
-    animation-delay: -20s; animation-duration: 45s; 
-    fill: var(--water-blue); /* #073642 */
-}
+.parallax-waves > use:nth-child(1) { animation-delay: -2s; animation-duration: 7s; fill: rgba(255, 255, 255, 0.3); }
+.parallax-waves > use:nth-child(2) { animation-delay: -5s; animation-duration: 10s; fill: rgba(135, 206, 250, 0.5); }
+.parallax-waves > use:nth-child(3) { animation-delay: -3s; animation-duration: 13s; fill: rgba(255, 255, 255, 0.5); }
+.parallax-waves > use:nth-child(4) { animation-delay: -8s; animation-duration: 16s; fill: rgba(0, 191, 255, 0.4); }
+.parallax-waves > use:nth-child(5) { animation-delay: -1s; animation-duration: 19s; fill: rgba(72, 118, 255, 0.6); }
+.parallax-waves > use:nth-child(6) { animation-delay: -10s; animation-duration: 22s; fill: rgba(255, 255, 255, 0.2); }
+.parallax-waves > use:nth-child(7) { animation-delay: -6s; animation-duration: 25s; fill: rgba(65, 105, 225, 0.7); }
+.parallax-waves > use:nth-child(8) { animation-delay: -12s; animation-duration: 30s; fill: rgba(30, 144, 255, 0.5); }
+.parallax-waves > use:nth-child(9) { animation-delay: -15s; animation-duration: 35s; fill: rgba(0, 0, 255, 0.3); }
+.parallax-waves > use:nth-child(10) { animation-delay: -20s; animation-duration: 45s; fill: var(--water-blue); }
 
 @keyframes move-forever {
     0% { transform: translate3d(-90px, 0, 0); }
     100% { transform: translate3d(85px, 0, 0); }
 }
 
-/* --- Contenu et Bateau --- */
 .footer-inner {
-    padding-top: 100px; /* Pousse le texte sous les vagues */
+    padding-top: 100px; 
     position: relative;
     z-index: 10;
 }
 
-#endsite {
+/* --- Les Navires --- */
+.ship {
     position: absolute;
     bottom: 30px;
-    left: -150px;
-    height: 60px;
-    z-index: 20; /* Le bateau passe devant les vagues */
-    animation: 
-        boat-sailing 28s linear infinite, 
-        boat-bobbing 3s ease-in-out infinite;
+    z-index: 20;
+    filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
 }
 
-@keyframes boat-sailing { 0% { left: -150px; } 100% { left: 110%; } }
-@keyframes boat-bobbing { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-15px) rotate(6deg); } }
+.ship.pirate {
+    left: -250px;
+    height: 60px;
+    animation: boat-sailing 28s linear infinite, boat-bobbing 3s ease-in-out infinite;
+}
+
+.ship.marine {
+    left: 110%; 
+    height: 75px;
+    z-index: 18; 
+    transform: scaleX(-1); 
+    animation: boat-sailing-reverse 38s linear infinite 4s, boat-bobbing-reverse 2.5s ease-in-out infinite;
+}
+
+.ship.baratie {
+    left: 110%;
+    height: 100px;
+    z-index: 15; 
+    transform: scaleX(-1);
+    animation: boat-sailing-reverse 50s linear infinite 8s, boat-bobbing-reverse 4s ease-in-out infinite;
+}
+
+/* Mouvements Gauche -> Droite */
+@keyframes boat-sailing { 
+    0% { left: -250px; } 
+    100% { left: 110%; } 
+}
+@keyframes boat-bobbing { 
+    0%, 100% { transform: translateY(0) rotate(0deg); } 
+    50% { transform: translateY(-15px) rotate(6deg); } 
+}
+
+/* Mouvements Droite -> Gauche */
+@keyframes boat-sailing-reverse { 
+    0% { left: 110%; } 
+    100% { left: -250px; } 
+}
+@keyframes boat-bobbing-reverse { 
+    0%, 100% { transform: scaleX(-1) translateY(0) rotate(0deg); } 
+    50% { transform: scaleX(-1) translateY(-15px) rotate(-6deg); } 
+}

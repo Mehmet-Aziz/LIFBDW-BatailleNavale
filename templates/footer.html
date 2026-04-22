@@ -6,19 +6,30 @@
                 <path id="wave-id" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" />
             </defs>
             <g class="parallax-waves">
+                <!-- Ajout des 10 couches pour correspondre aux 10 nth-child de ton CSS -->
                 <use xlink:href="#wave-id" x="48" y="0" />
+                <use xlink:href="#wave-id" x="48" y="1" />
+                <use xlink:href="#wave-id" x="48" y="2" />
                 <use xlink:href="#wave-id" x="48" y="3" />
+                <use xlink:href="#wave-id" x="48" y="4" />
                 <use xlink:href="#wave-id" x="48" y="5" />
+                <use xlink:href="#wave-id" x="48" y="6" />
                 <use xlink:href="#wave-id" x="48" y="7" />
+                <use xlink:href="#wave-id" x="48" y="8" />
+                <use xlink:href="#wave-id" x="48" y="9" />
             </g>
         </svg>
     </div>
 
     <div class="footer-inner">
-        <p>&copy; 2026 - Projet BDW UCBL</p>
+        <p>&copy; 2026 - Projet BDW UCBL : Sur la Route de Grand Line</p>
         <p>Réalisé par : [GEDIK] & [DAHOUI]</p>
         <p><a href="#">Site UCBL</a> | <a href="#">Plan du site</a></p>
     </div>
 
-    <img src="/static/img/end.png" alt="Bateau" id="endsite">
+    <!-- Les 3 Navires avec leurs classes respectives -->
+    <img src="/static/img/barati.png" alt="Le Baratie" class="ship baratie">
+    <img src="/static/img/marin.png" alt="Navire de la Marine" class="ship marine">
+    <img src="/static/img/end.png" alt="Navire Pirate" class="ship pirate" onerror="this.src='/static/img/sunny.png'">
 </footer>
+
