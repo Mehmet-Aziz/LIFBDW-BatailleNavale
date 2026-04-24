@@ -20,7 +20,7 @@ Interface Immersive : Un design soigné (HTML/CSS) reprenant les codes de la pir
 🗺️ La Carte au Trésor (Architecture du projet)
 
 Voici la structure de notre navire :
-
+```
 LIFBDW-BatailleNavale/
 ├── controleurs/          # Logique métier et routes du serveur
 │   ├── aceuille.py
@@ -55,7 +55,7 @@ LIFBDW-BatailleNavale/
 ├── requierment.in        # Dépendances Python
 └── server.py             # Script principal de lancement du serveur
 
-
+```
 ⛵ Prendre la Mer (Installation & Lancement)
 
 Prêt à hisser les voiles ? Suivez ces instructions étape par étape dans votre terminal pour lancer le jeu localement.
@@ -71,26 +71,34 @@ cd LIFBDW-BatailleNavale
 2. Préparer les vivres (Environnement virtuel)
 
 On isole les dépendances du projet dans un environnement virtuel :
-
+```sh
 python3 -m venv .vebdw
-
+```
 
 Note : Activez l'environnement avant d'installer les dépendances.
 
-Sur Linux/Mac : source .vebdw/bin/activate
+Sur Linux/Mac :
+```sh
+source .vebdw/bin/activate
+```
 
-Sur Windows : .vebdw\Scripts\activate
-
+Sur Windows :
+```sh
+.vebdw\Scripts\activate
+```
 Installez ensuite les paquets requis :
 
+```sh
 pip install -r requierment.in
-
+```
 
 3. Larguer les amarres (Lancer le serveur)
 
 Exécutez le script serveur à la racine du dossier :
+```sh
 
 python3 server.py .
+```
 
 
 4. Jouer !
