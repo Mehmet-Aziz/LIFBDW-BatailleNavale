@@ -63,10 +63,12 @@ Prêt à hisser les voiles ? Suivez ces instructions étape par étape dans votr
 Prérequis : Avoir configuré une base de données PostgreSQL locale et mis à jour le fichier config-bd.toml. Avoir exécuté les scripts du dossier table_sql/ pour créer et peupler la base.
 
 1. Cloner le navire (le dépôt)
-
+```sh
 git clone [https://github.com/Mehmet-Aziz/LIFBDW-BatailleNavale.git](https://github.com/Mehmet-Aziz/LIFBDW-BatailleNavale.git)
+```
+```sh
 cd LIFBDW-BatailleNavale
-
+```
 
 2. Préparer les vivres (Environnement virtuel)
 
